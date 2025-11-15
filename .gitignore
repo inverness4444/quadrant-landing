@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+data/leads.json
+data/users.json
+data/workspaces.json
+data/app-data.json
+data/*.db

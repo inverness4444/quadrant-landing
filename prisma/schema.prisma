@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum EmployeeLevel {
+  Junior
+  Middle
+  Senior
+}
+
+enum SkillType {
+  hard
+  soft
+  product
+  data
+}
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  workspace    Workspace?
+}
+
+model Workspace {
+  id          String     @id @default(uuid())
+  name        String
+  size        String?
+  ownerUserId String     @unique
+  owner       User       @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  employees   Employee[]
+  skills      Skill[]
+  tracks      Track[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model Employee {
+  id            String          @id @default(uuid())
+  workspaceId   String
+  workspace     Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name          String
+  position      String
+  level         EmployeeLevel
+  primaryTrackId String?
+  primaryTrack   Track?         @relation("EmployeeTrack", fields: [primaryTrackId], references: [id], onDelete: SetNull)
+  trackLevelId   String?
+  trackLevel     TrackLevel?    @relation("EmployeeTrackLevel", fields: [trackLevelId], references: [id], onDelete: SetNull)
+  employeeSkills EmployeeSkill[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model Skill {
+  id          String          @id @default(uuid())
+  workspaceId String
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  type        SkillType
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  employees   EmployeeSkill[]
+
+  @@unique([workspaceId, name])
+}
+
+model EmployeeSkill {
+  employeeId String
+  skillId    String
+  level      Int
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  skill    Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([employeeId, skillId])
+}
+
+model Track {
+  id          String       @id @default(uuid())
+  workspaceId String
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  employees   Employee[]   @relation("EmployeeTrack")
+  levels      TrackLevel[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([workspaceId, name])
+}
+
+model TrackLevel {
+  id          String   @id @default(uuid())
+  trackId     String
+  track       Track    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  name        String
+  description String
+  order       Int
+  employees   Employee[] @relation("EmployeeTrackLevel")
+}
+
+model Lead {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  company   String
+  headcount String
+  message   String
+  createdAt DateTime @default(now())
+}
