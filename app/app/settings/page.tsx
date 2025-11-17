@@ -3,5 +3,5 @@ import { requireWorkspaceContext } from "@/lib/workspaceContext";
 
 export default async function SettingsPage() {
   const context = await requireWorkspaceContext();
-  return <SettingsClient workspace={context.workspace} user={context.user} />;
+  return <SettingsClient workspace={context.workspace} user={context.user} member={context.member} />;
 }

@@ -12,7 +12,7 @@ type AppNavLinkProps = {
 
 export default function AppNavLink({ href, children, variant = "sidebar" }: AppNavLinkProps) {
   const pathname = usePathname();
-  const isActive = pathname === href;
+  const isActive = pathname === href || pathname.startsWith(`${href}/`);
 
   if (variant === "pill") {
     return (

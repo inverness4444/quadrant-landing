@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import Card from "@/components/common/Card";
 import PrimaryButton from "@/components/common/PrimaryButton";
 import type { Workspace, User, Member, MemberRole, Invite } from "@/drizzle/schema";
+import { AVAILABLE_INTEGRATIONS, type IntegrationStatus, type IntegrationType } from "@/integrations/types";
+import { buildCsrfHeader } from "@/lib/csrf";
 
-type SettingsTab = "company" | "profile" | "participants";
+type SettingsTab = "company" | "profile" | "participants" | "integrations" | "billing";
 
 type MemberListItem = {
   userId: string;
@@ -27,6 +29,58 @@ type ParticipantInvite = {
 
 type InviteRole = "member" | "admin";
 
+type IntegrationState = {
+  id: string;
+  status: IntegrationStatus;
+  lastSyncedAt: string | null;
+  config: Record<string, unknown>;
+};
+
+const EMPTY_INTEGRATIONS_STATE = AVAILABLE_INTEGRATIONS.reduce(
+  (acc, integration) => {
+    acc[integration.type] = null;
+    return acc;
+  },
+  {} as Record<IntegrationType, IntegrationState | null>,
+);
+
+type IntegrationAction =
+  | {
+      type: IntegrationType;
+      action: "connect" | "disconnect" | "sync";
+    }
+  | null;
+
+type IntegrationActionType = Exclude<IntegrationAction, null>["action"];
+
+type BillingPlanInfo = {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  maxMembers: number | null;
+  maxEmployees: number | null;
+  maxIntegrations: number | null;
+  pricePerMonth: number;
+};
+
+type BillingUsage = {
+  currentMembersCount: number;
+  currentEmployeesCount: number;
+  currentIntegrationsCount: number;
+  currentArtifactsCount: number;
+};
+
+type BillingInfoResponse = {
+  plan: BillingPlanInfo;
+  workspace: {
+    billingEmail: string | null;
+    trialEndsAt: string | null;
+  };
+  usage: BillingUsage;
+  plans: BillingPlanInfo[];
+};
+
 type SettingsClientProps = {
   workspace: Workspace;
   user: User;
@@ -40,8 +94,16 @@ const sizeOptions = [
   { value: "500+", label: "500+" },
 ] as const;
 
+const inviteStatusLabels: Record<ParticipantInvite["status"], string> = {
+  pending: "в ожидании",
+  accepted: "принято",
+  expired: "отменено",
+};
+
 export default function SettingsClient({ workspace, user, member }: SettingsClientProps) {
   const canManageParticipants = member.role !== "member";
+  const canManageIntegrations = member.role !== "member";
+  const canManageBilling = member.role !== "member";
   const [activeTab, setActiveTab] = useState<SettingsTab>("company");
   const [companyForm, setCompanyForm] = useState({
     name: workspace.name,
@@ -64,12 +126,54 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
   const [inviteForm, setInviteForm] = useState({ email: "", role: "member" as InviteRole });
   const [inviteMessage, setInviteMessage] = useState<string | null>(null);
   const [invitePending, startInviteTransition] = useTransition();
+  const [integrationsData, setIntegrationsData] = useState<Record<IntegrationType, IntegrationState | null>>(
+    () => ({ ...EMPTY_INTEGRATIONS_STATE }),
+  );
+  const [integrationsLoading, setIntegrationsLoading] = useState(false);
+  const [integrationMessage, setIntegrationMessage] = useState<string | null>(null);
+  const [integrationAction, setIntegrationAction] = useState<IntegrationAction>(null);
+  const [billingInfo, setBillingInfo] = useState<BillingInfoResponse | null>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingMessage, setBillingMessage] = useState<string | null>(null);
+  const [billingEmail, setBillingEmail] = useState(workspace.billingEmail ?? user.email);
+  const [billingSaving, setBillingSaving] = useState(false);
 
-  const tabs = [
+  type ApiErrorResponse = {
+    error?: { code?: string; message?: string };
+    message?: string;
+  };
+
+  const describeApiError = (payload: unknown, fallback: string) => {
+    if (payload && typeof payload === "object") {
+      const data = payload as ApiErrorResponse;
+      if (data.error?.code === "PLAN_LIMIT_REACHED" && data.error.message) {
+        return `${data.error.message} Откройте вкладку «Тариф и биллинг», чтобы обновить лимиты.`;
+      }
+      return data.error?.message || data.message || fallback;
+    }
+    return fallback;
+  };
+
+  const scrollToInviteForm = () => {
+    const el = document.getElementById("invite-form");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
+  const tabs: Array<{ id: SettingsTab; label: string }> = [
     { id: "company", label: "Компания" },
     { id: "profile", label: "Профиль" },
-    ...(canManageParticipants ? [{ id: "participants", label: "Участники" }] : []),
-  ] as const;
+  ];
+  if (canManageParticipants) {
+    tabs.push({ id: "participants", label: "Участники" });
+  }
+  if (canManageIntegrations) {
+    tabs.push({ id: "integrations", label: "Интеграции" });
+  }
+  if (canManageBilling) {
+    tabs.push({ id: "billing", label: "Тариф и биллинг" });
+  }
 
   const fetchMembers = useCallback(async () => {
     setMembersLoading(true);
@@ -115,11 +219,59 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
     }
   }, []);
 
+  const fetchIntegrations = useCallback(async () => {
+    if (!canManageIntegrations) return;
+    setIntegrationsLoading(true);
+    try {
+      const response = await fetch("/api/integrations");
+      if (response.ok) {
+        const payload = await response.json();
+        const map: Record<IntegrationType, IntegrationState | null> = {} as Record<
+          IntegrationType,
+          IntegrationState | null
+        >;
+        (payload.integrations ?? []).forEach(
+          (item: { type: IntegrationType; integration: IntegrationState | null }) => {
+            map[item.type] = item.integration;
+          },
+        );
+        setIntegrationsData(map);
+      }
+    } finally {
+      setIntegrationsLoading(false);
+    }
+  }, [canManageIntegrations]);
+
+  const fetchBilling = useCallback(async () => {
+    if (!canManageBilling) return;
+    setBillingLoading(true);
+    try {
+      const response = await fetch("/api/app/settings/billing");
+      if (response.ok) {
+        const payload = await response.json();
+        setBillingInfo(payload);
+        setBillingEmail(payload.workspace?.billingEmail ?? user.email);
+      }
+    } finally {
+      setBillingLoading(false);
+    }
+  }, [canManageBilling, user.email]);
+
   useEffect(() => {
     if (!canManageParticipants) return;
     void fetchMembers();
     void fetchInvites();
   }, [canManageParticipants, fetchInvites, fetchMembers]);
+
+  useEffect(() => {
+    if (!canManageIntegrations) return;
+    void fetchIntegrations();
+  }, [canManageIntegrations, fetchIntegrations]);
+
+  useEffect(() => {
+    if (!canManageBilling) return;
+    void fetchBilling();
+  }, [canManageBilling, fetchBilling]);
 
   const handleCompanySubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -127,7 +279,7 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
     startCompanyTransition(async () => {
       const response = await fetch("/api/app/settings/company", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...buildCsrfHeader() },
         body: JSON.stringify(companyForm),
       });
       if (response.ok) {
@@ -144,7 +296,7 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
     startProfileTransition(async () => {
       const response = await fetch("/api/app/settings/profile", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...buildCsrfHeader() },
         body: JSON.stringify({ name: profileForm.name }),
       });
       if (response.ok) {
@@ -155,13 +307,34 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
     });
   };
 
+  const handleBillingSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBillingMessage(null);
+    setBillingSaving(true);
+    (async () => {
+      const response = await fetch("/api/app/settings/billing", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...buildCsrfHeader() },
+        body: JSON.stringify({ billingEmail }),
+      });
+      setBillingSaving(false);
+      if (response.ok) {
+        setBillingMessage("Сохранено");
+        await fetchBilling();
+      } else {
+        const data = await response.json().catch(() => ({}));
+        setBillingMessage(data.message || "Не удалось сохранить email для биллинга");
+      }
+    })();
+  };
+
   const handleInviteSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setInviteMessage(null);
     startInviteTransition(async () => {
       const response = await fetch("/api/invites", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...buildCsrfHeader() },
         body: JSON.stringify(inviteForm),
       });
       if (response.ok) {
@@ -169,38 +342,126 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
         setInviteForm({ email: "", role: "member" });
         await fetchInvites();
       } else {
-        setInviteMessage("Не удалось отправить приглашение");
+        const data = await response.json().catch(() => ({}));
+        setInviteMessage(describeApiError(data, "Не удалось отправить приглашение"));
       }
     });
   };
 
+  const sendIntegrationRequest = async (
+    endpoint: string,
+    payload: Record<string, unknown>,
+    action: IntegrationActionType,
+    type: IntegrationType,
+  ) => {
+    setIntegrationAction({ type, action });
+    setIntegrationMessage(null);
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...buildCsrfHeader() },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setIntegrationMessage(describeApiError(data, "Не удалось выполнить действие"));
+        return null;
+      }
+      await fetchIntegrations();
+      return response;
+    } finally {
+      setIntegrationAction(null);
+    }
+  };
+
+  const handleConnectIntegration = async (type: IntegrationType) => {
+    const response = await sendIntegrationRequest("/api/integrations/connect", { type }, "connect", type);
+    if (response) {
+      setIntegrationMessage("Интеграция подключена");
+    }
+  };
+
+  const handleDisconnectIntegration = async (type: IntegrationType) => {
+    const response = await sendIntegrationRequest(
+      "/api/integrations/disconnect",
+      { type },
+      "disconnect",
+      type,
+    );
+    if (response) {
+      setIntegrationMessage("Интеграция отключена");
+    }
+  };
+
+  const handleSyncIntegration = async (type: IntegrationType) => {
+    const response = await sendIntegrationRequest("/api/integrations/sync", { type }, "sync", type);
+    if (response) {
+      const data = await response.json().catch(() => ({}));
+      const count = typeof data.createdArtifactsCount === "number" ? data.createdArtifactsCount : 0;
+      setIntegrationMessage(`Синхронизация завершена. Создано ${count} артефактов.`);
+    }
+  };
+
   const handleCancelInvite = async (inviteId: string) => {
     setParticipantsMessage(null);
-    const response = await fetch(`/api/invites/${inviteId}`, { method: "DELETE" });
+    const response = await fetch(`/api/invites/${inviteId}`, {
+      method: "DELETE",
+      headers: buildCsrfHeader(),
+    });
     if (response.ok) {
       setParticipantsMessage("Приглашение отменено");
       await fetchInvites();
     } else {
-      setParticipantsMessage("Не удалось отменить приглашение");
+      const data = await response.json().catch(() => ({}));
+      setParticipantsMessage(data.message || "Не удалось отменить приглашение");
     }
   };
 
   const handleRoleChange = async (userId: string, role: MemberRole) => {
     setParticipantsMessage(null);
     setRoleUpdating(userId);
-    const response = await fetch(`/api/members/${userId}/role`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role }),
-    });
-    setRoleUpdating(null);
-    if (response.ok) {
-      setParticipantsMessage("Роль обновлена");
-      await fetchMembers();
-    } else {
-      setParticipantsMessage("Не удалось обновить роль");
+    try {
+      const response = await fetch(`/api/members/${userId}/role`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...buildCsrfHeader() },
+        body: JSON.stringify({ role }),
+      });
+      if (response.ok) {
+        setParticipantsMessage("Роль обновлена");
+        await fetchMembers();
+      } else {
+        setParticipantsMessage("Не удалось обновить роль");
+      }
+    } finally {
+      setRoleUpdating(null);
     }
   };
+
+  const integrationStatusLabels: Record<IntegrationStatus, string> = {
+    connected: "Подключено",
+    disconnected: "Отключено",
+    error: "Ошибка",
+  };
+
+  const isIntegrationActionPending = (type: IntegrationType, action: IntegrationActionType) =>
+    integrationAction?.type === type && integrationAction?.action === action;
+
+  const formatUsageValue = (current: number, max: number | null | undefined) => {
+    if (!max || max <= 0) {
+      return `${current} / ∞`;
+    }
+    return `${current} / ${max}`;
+  };
+
+  const formatPriceLabel = (value: number) => {
+    if (!value) return "Бесплатно";
+    return `от ${value} $/мес`;
+  };
+
+  const hasConnectedIntegrations = Object.values(integrationsData).some(
+    (integration) => integration?.status === "connected",
+  );
+  const defaultIntegrationType = AVAILABLE_INTEGRATIONS[0]?.type ?? "github";
 
   const renderParticipants = () => (
     <div className="space-y-6">
@@ -217,7 +478,12 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
           {membersLoading ? (
             <p className="text-sm text-slate-500">Загрузка участников...</p>
           ) : membersList.length === 0 ? (
-            <p className="text-sm text-slate-500">Нет участников</p>
+            <div className="rounded-2xl border border-dashed border-brand-border p-6 text-center">
+              <p className="text-sm text-slate-600">Вы пока единственный участник. Пригласите коллег ниже.</p>
+              <PrimaryButton type="button" className="mt-4 px-4 py-2" onClick={scrollToInviteForm}>
+                Пригласить участника
+              </PrimaryButton>
+            </div>
           ) : (
             <table className="w-full text-sm">
               <thead className="text-left text-xs uppercase text-slate-400">
@@ -246,7 +512,7 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
                           className="h-9 rounded-xl border border-brand-border/60 bg-white px-3 text-sm"
                           value={item.role}
                           onChange={(event) => handleRoleChange(item.userId, event.target.value as MemberRole)}
-                          disabled={Boolean(roleUpdating)}
+                          disabled={roleUpdating === item.userId}
                         >
                           <option value="member">Участник</option>
                           <option value="admin">Админ</option>
@@ -272,7 +538,7 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
           {invitesLoading ? (
             <p className="text-sm text-slate-500">Загрузка приглашений...</p>
           ) : invites.length === 0 ? (
-            <p className="text-sm text-slate-500">Пока нет активных приглашений</p>
+            <p className="text-sm text-slate-500">Пока нет активных приглашений — используйте форму ниже, чтобы отправить первое.</p>
           ) : (
             <table className="w-full text-sm">
               <thead className="text-left text-xs uppercase text-slate-400">
@@ -289,7 +555,7 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
                   <tr key={invite.id} className="border-t border-brand-border/60">
                     <td className="py-3 text-slate-700">{invite.email}</td>
                     <td className="py-3 text-slate-600">{invite.role === "admin" ? "Админ" : "Участник"}</td>
-                    <td className="py-3 text-slate-600">{invite.status}</td>
+                    <td className="py-3 text-slate-600">{inviteStatusLabels[invite.status]}</td>
                     <td className="py-3 text-slate-600">{new Date(invite.createdAt).toLocaleString("ru-RU")}</td>
                     <td className="py-3">
                       {invite.status === "pending" && (
@@ -312,7 +578,7 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
       <Card>
         <p className="text-sm font-semibold text-brand-text">Пригласить участника</p>
         <p className="text-xs text-slate-500">Отправьте приглашение по email</p>
-        <form className="mt-4 space-y-3" onSubmit={handleInviteSubmit}>
+        <form id="invite-form" className="mt-4 space-y-3" onSubmit={handleInviteSubmit}>
           <label className="block text-sm text-slate-600">
             Email
             <input
@@ -344,6 +610,186 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
     </div>
   );
 
+  const renderIntegrations = () => (
+    <div className="space-y-4">
+      {integrationMessage && <p className="text-sm text-slate-500">{integrationMessage}</p>}
+      {integrationsLoading ? (
+        <p className="text-sm text-slate-500">Загружаем интеграции...</p>
+      ) : (
+        <>
+          {!hasConnectedIntegrations && (
+            <Card className="border-dashed">
+              <p className="text-sm text-slate-600">
+                Подключите GitHub, Jira или Notion, чтобы Quadrant подтягивал реальные артефакты и показывал вклад команд.
+              </p>
+              {canManageIntegrations && (
+                <PrimaryButton
+                  type="button"
+                  className="mt-3 px-4 py-2"
+                  onClick={() => handleConnectIntegration(defaultIntegrationType)}
+                  disabled={isIntegrationActionPending(defaultIntegrationType, "connect")}
+                >
+                  Подключить интеграцию
+                </PrimaryButton>
+              )}
+            </Card>
+          )}
+          <div className="grid gap-4 md:grid-cols-3">
+            {AVAILABLE_INTEGRATIONS.map((descriptor) => {
+              const data = integrationsData[descriptor.type] ?? null;
+              const statusLabel = data ? integrationStatusLabels[data.status] : "Не подключено";
+              return (
+                <Card
+                  key={descriptor.type}
+                  className="space-y-3"
+                  data-testid={`integration-card-${descriptor.type}`}
+                >
+                <div>
+                  <p className="text-sm font-semibold text-brand-text">{descriptor.displayName}</p>
+                  <p className="text-xs text-slate-500">{descriptor.description}</p>
+                </div>
+                <p className="text-sm text-slate-600">
+                  Статус: <span className="font-semibold">{statusLabel}</span>
+                </p>
+                {data?.lastSyncedAt && (
+                  <p className="text-xs text-slate-500">
+                    Последняя синхронизация: {new Date(data.lastSyncedAt).toLocaleString("ru-RU")}
+                  </p>
+                )}
+                {canManageIntegrations && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {(!data || data.status !== "connected") && (
+                      <PrimaryButton
+                        type="button"
+                        className="px-4 py-2"
+                        onClick={() => handleConnectIntegration(descriptor.type)}
+                        disabled={isIntegrationActionPending(descriptor.type, "connect")}
+                      >
+                        {isIntegrationActionPending(descriptor.type, "connect") ? "Подключаем..." : "Подключить"}
+                      </PrimaryButton>
+                    )}
+                    {data && data.status === "connected" && (
+                      <>
+                        <PrimaryButton
+                          type="button"
+                          variant="secondary"
+                          className="px-4 py-2"
+                          onClick={() => handleDisconnectIntegration(descriptor.type)}
+                          disabled={isIntegrationActionPending(descriptor.type, "disconnect")}
+                        >
+                          {isIntegrationActionPending(descriptor.type, "disconnect") ? "Отключаем..." : "Отключить"}
+                        </PrimaryButton>
+                        <PrimaryButton
+                          type="button"
+                          className="px-4 py-2"
+                          onClick={() => handleSyncIntegration(descriptor.type)}
+                          disabled={isIntegrationActionPending(descriptor.type, "sync")}
+                        >
+                          {isIntegrationActionPending(descriptor.type, "sync")
+                            ? "Синхронизируем..."
+                            : "Синхронизировать"}
+                        </PrimaryButton>
+                      </>
+                    )}
+                  </div>
+                )}
+              </Card>
+            );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  const renderBilling = () => {
+    const usage = billingInfo?.usage;
+    const plan = billingInfo?.plan;
+    const trialEndsAt = billingInfo?.workspace.trialEndsAt;
+    const trialActive = trialEndsAt ? new Date(trialEndsAt) > new Date() : false;
+    const availablePlans = billingInfo?.plans ?? [];
+
+    return (
+      <div className="space-y-6">
+        <Card>
+          {billingLoading && !plan ? (
+            <p className="text-sm text-slate-500">Загружаем данные тарифа...</p>
+          ) : (
+            <>
+              <p className="text-sm font-semibold text-brand-text">Текущий план</p>
+              <p className="text-xl font-semibold text-brand-text">{plan?.name ?? "—"}</p>
+              <p className="mt-1 text-sm text-slate-600">{plan?.description}</p>
+              {trialActive && trialEndsAt && (
+                <p className="mt-2 text-xs font-semibold text-emerald-600">
+                  Пробный период до {new Date(trialEndsAt).toLocaleDateString("ru-RU")}
+                </p>
+              )}
+              <div className="mt-4 space-y-2 text-sm text-slate-600">
+                <div className="flex items-center justify-between">
+                  <span>Сотрудники</span>
+                  <span className="font-semibold">
+                    {formatUsageValue(usage?.currentEmployeesCount ?? 0, plan?.maxEmployees ?? null)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Участники</span>
+                  <span className="font-semibold">
+                    {formatUsageValue(usage?.currentMembersCount ?? 0, plan?.maxMembers ?? null)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Интеграции</span>
+                  <span className="font-semibold">
+                    {formatUsageValue(usage?.currentIntegrationsCount ?? 0, plan?.maxIntegrations ?? null)}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
+        </Card>
+        <Card>
+          <p className="text-sm font-semibold text-brand-text">Billing email</p>
+          <form className="mt-3 flex flex-col gap-3 sm:flex-row" onSubmit={handleBillingSubmit}>
+            <input
+              className="h-11 flex-1 rounded-xl border border-brand-border px-4"
+              value={billingEmail}
+              onChange={(event) => setBillingEmail(event.target.value)}
+              type="email"
+              required
+            />
+            <PrimaryButton type="submit" disabled={billingSaving} className="px-6">
+              {billingSaving ? "Сохраняем..." : "Сохранить"}
+            </PrimaryButton>
+          </form>
+          {billingMessage && <p className="mt-2 text-sm text-slate-500">{billingMessage}</p>}
+        </Card>
+        <div className="grid gap-4 md:grid-cols-3">
+          {availablePlans.map((planOption) => (
+            <Card
+              key={planOption.id}
+              className={`space-y-3 ${planOption.id === plan?.id ? "border-brand-primary" : ""}`}
+            >
+              <p className="text-sm font-semibold uppercase text-slate-500">{planOption.name}</p>
+              <p className="text-xl font-semibold text-brand-text">{formatPriceLabel(planOption.pricePerMonth)}</p>
+              <p className="text-sm text-slate-600">{planOption.description}</p>
+              <div className="text-xs text-slate-500">
+                <p>Участники: {planOption.maxMembers ? `до ${planOption.maxMembers}` : "без лимита"}</p>
+                <p>Сотрудники: {planOption.maxEmployees ? `до ${planOption.maxEmployees}` : "без лимита"}</p>
+                <p>Интеграции: {planOption.maxIntegrations ? `до ${planOption.maxIntegrations}` : "без лимита"}</p>
+              </div>
+              <PrimaryButton
+                href={planOption.pricePerMonth ? `/contact?plan=${planOption.code}` : "/auth/register"}
+                variant={planOption.pricePerMonth ? "secondary" : "primary"}
+                className="w-full"
+              >
+                {planOption.pricePerMonth ? `Обсудить ${planOption.name}` : "Начать бесплатно"}
+              </PrimaryButton>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  };
   const renderTabContent = () => {
     if (activeTab === "company") {
       return (
@@ -429,6 +875,12 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
     }
     if (activeTab === "participants") {
       return renderParticipants();
+    }
+    if (activeTab === "integrations") {
+      return renderIntegrations();
+    }
+    if (activeTab === "billing") {
+      return renderBilling();
     }
     return null;
   };

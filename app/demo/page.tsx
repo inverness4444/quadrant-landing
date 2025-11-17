@@ -3,6 +3,7 @@ import HeroSection from "@/components/sections/home/HeroSection";
 import TeamGraph from "@/components/sections/demo/TeamGraph";
 import CareerTrack from "@/components/sections/demo/CareerTrack";
 import SectionTitle from "@/components/common/SectionTitle";
+import DemoLoginBanner from "@/components/marketing/DemoLoginBanner";
 import { getDemoData } from "@/services/demoService";
 import type { Metadata } from "next";
 
@@ -27,6 +28,7 @@ export default function DemoPage() {
         }}
         highlights={["4 команды", "20+ навыков", "карьерные треки"]}
       />
+      <DemoLoginBanner />
 
       <section id="graph" className="space-y-6">
         <SectionTitle

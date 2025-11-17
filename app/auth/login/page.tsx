@@ -32,6 +32,8 @@ export default function LoginPage() {
     setError(data.message || "Не удалось войти");
   };
 
+  const registerHref = `/auth/register${nextPath ? `?next=${encodeURIComponent(nextPath)}` : ""}`;
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-brand-muted px-4">
       <Card className="w-full max-w-md space-y-4">
@@ -67,7 +69,10 @@ export default function LoginPage() {
           </PrimaryButton>
         </form>
         <p className="text-sm text-slate-600">
-          Нет аккаунта? <Link href="/auth/register" className="text-brand-link">Создать</Link>
+          Нет аккаунта?{" "}
+          <Link href={registerHref} className="text-brand-link">
+            Создать
+          </Link>
         </p>
       </Card>
     </div>

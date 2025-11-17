@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { and, asc, eq, inArray } from "drizzle-orm";
+import { sql } from "drizzle-orm/sql";
 import { db } from "@/lib/db";
 import {
   employees,
@@ -24,6 +25,14 @@ export type EmployeePayload = {
   primaryTrackId?: string | null;
   trackLevelId?: string | null;
   skills?: EmployeeSkillInput[];
+};
+
+export type EmployeeListFilters = {
+  page: number;
+  pageSize: number;
+  search?: string;
+  level?: EmployeeLevel | "all";
+  position?: string | null;
 };
 
 export async function listEmployees(workspaceId: string) {
@@ -121,6 +130,76 @@ export async function listEmployeeSkillsByWorkspace(workspaceId: string) {
 
 export async function listEmployeeSkillsForEmployee(employeeId: string) {
   return db.select().from(employeeSkills).where(eq(employeeSkills.employeeId, employeeId));
+}
+
+export async function listEmployeeSkillsForEmployees(employeeIds: string[]) {
+  if (employeeIds.length === 0) return [];
+  return db.select().from(employeeSkills).where(inArray(employeeSkills.employeeId, employeeIds));
+}
+
+export async function listEmployeeSkillsBySkillIds(skillIds: string[]) {
+  if (skillIds.length === 0) return [];
+  return db.select().from(employeeSkills).where(inArray(employeeSkills.skillId, skillIds));
+}
+
+export async function listEmployeesByIds(ids: string[]) {
+  if (ids.length === 0) return [];
+  return db.select().from(employees).where(inArray(employees.id, ids));
+}
+
+export async function listEmployeePositions(workspaceId: string) {
+  const rows = await db
+    .select({ position: employees.position })
+    .from(employees)
+    .where(eq(employees.workspaceId, workspaceId))
+    .groupBy(employees.position)
+    .orderBy(asc(employees.position));
+  return rows.map((row) => row.position).filter((position): position is string => Boolean(position));
+}
+
+export async function listEmployeesPaginated(workspaceId: string, filters: EmployeeListFilters) {
+  const page = Math.max(1, filters.page || 1);
+  const pageSize = Math.min(100, Math.max(1, filters.pageSize || 20));
+  let where = eq(employees.workspaceId, workspaceId);
+  if (filters.level && filters.level !== "all") {
+    const levelFilter = and(where, eq(employees.level, filters.level));
+    if (levelFilter) {
+      where = levelFilter;
+    }
+  }
+  if (filters.position && filters.position !== "all") {
+    const positionFilter = and(where, eq(employees.position, filters.position));
+    if (positionFilter) {
+      where = positionFilter;
+    }
+  }
+  if (filters.search) {
+    const term = `%${filters.search.toLowerCase()}%`;
+    const searchFilter = and(
+      where,
+      sql`(lower(${employees.name}) like ${term} or lower(${employees.position}) like ${term})`,
+    );
+    if (searchFilter) {
+      where = searchFilter;
+    }
+  }
+  const [{ count }] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(employees)
+    .where(where);
+  const items = await db
+    .select()
+    .from(employees)
+    .where(where)
+    .orderBy(asc(employees.name))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
+  return {
+    employees: items,
+    total: Number(count ?? 0),
+    page,
+    pageSize,
+  };
 }
 
 async function validateSkillAssignments(workspaceId: string, skillIds: string[]) {

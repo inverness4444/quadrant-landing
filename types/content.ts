@@ -4,7 +4,9 @@ export type NavLink = {
   defaultLabel: string;
 };
 
-export type CTA = NavLink & {
+export type CTA = {
+  label: string;
+  href: string;
   variant?: "primary" | "secondary";
 };
 
@@ -71,7 +73,7 @@ export type PricingPlan = {
 
 export type FooterLinkGroup = {
   title: string;
-  links: NavLink[];
+  links: { label: string; href: string }[];
 };
 
 export type ContactContent = {

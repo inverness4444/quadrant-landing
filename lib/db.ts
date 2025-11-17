@@ -3,9 +3,10 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import path from "path";
 import fs from "fs";
 import * as schema from "@/drizzle/schema";
+import { env } from "@/config/env";
 
 function resolveDatabasePath() {
-  const url = process.env.DATABASE_URL ?? "file:./data/quadrant.db";
+  const url = env.databaseUrl;
   if (!url.startsWith("file:")) {
     throw new Error("Only SQLite file URLs are supported in this environment");
   }

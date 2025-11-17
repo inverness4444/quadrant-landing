@@ -10,6 +10,31 @@ export type SkillType = (typeof skillTypes)[number];
 export const memberRoles = ["owner", "admin", "member"] as const;
 export type MemberRole = (typeof memberRoles)[number];
 
+export const integrationStatuses = ["connected", "disconnected", "error"] as const;
+export type IntegrationStatus = (typeof integrationStatuses)[number];
+
+export const plans = sqliteTable(
+  "plans",
+  {
+    id: text("id").notNull().primaryKey(),
+    code: text("code").notNull(),
+    name: text("name").notNull(),
+    description: text("description").notNull(),
+    maxMembers: integer("max_members"),
+    maxIntegrations: integer("max_integrations"),
+    maxEmployees: integer("max_employees"),
+    maxArtifacts: integer("max_artifacts"),
+    isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
+    pricePerMonth: integer("price_per_month").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    codeIdx: uniqueIndex("plans_code_idx").on(table.code),
+    defaultIdx: index("plans_is_default_idx").on(table.isDefault),
+  }),
+);
+
 export const users = sqliteTable("users", {
   id: text("id").notNull().primaryKey(),
   email: text("email").notNull().unique(),
@@ -27,6 +52,9 @@ export const workspaces = sqliteTable("workspaces", {
     .notNull()
     .unique()
     .references(() => users.id, { onDelete: "cascade" }),
+  planId: text("plan_id").references(() => plans.id, { onDelete: "restrict" }),
+  trialEndsAt: text("trial_ends_at"),
+  billingEmail: text("billing_email"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
@@ -74,6 +102,26 @@ export const invites = sqliteTable(
     tokenIdx: uniqueIndex("invites_token_idx").on(table.token),
     emailWorkspaceIdx: index("invites_email_workspace_idx").on(table.email, table.workspaceId),
     statusIdx: index("invites_status_idx").on(table.status),
+  }),
+);
+
+export const integrations = sqliteTable(
+  "integrations",
+  {
+    id: text("id").notNull().primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    status: text("status").$type<IntegrationStatus>().notNull().default("connected"),
+    config: text("config").notNull().default("{}"),
+    lastSyncedAt: text("last_synced_at"),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    workspaceIdx: index("integrations_workspace_idx").on(table.workspaceId),
+    workspaceTypeIdx: uniqueIndex("integrations_workspace_type_idx").on(table.workspaceId, table.type),
   }),
 );
 
@@ -141,6 +189,45 @@ export const skills = sqliteTable(
   }),
 );
 
+export const artifacts = sqliteTable(
+  "artifacts",
+  {
+    id: text("id").notNull().primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    employeeId: text("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    type: text("type").notNull(),
+    title: text("title").notNull(),
+    description: text("description").notNull(),
+    link: text("link"),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    workspaceIdx: index("artifacts_workspace_idx").on(table.workspaceId),
+    employeeIdx: index("artifacts_employee_idx").on(table.employeeId),
+  }),
+);
+
+export const artifactSkills = sqliteTable(
+  "artifact_skills",
+  {
+    artifactId: text("artifact_id")
+      .notNull()
+      .references(() => artifacts.id, { onDelete: "cascade" }),
+    skillId: text("skill_id")
+      .notNull()
+      .references(() => skills.id, { onDelete: "cascade" }),
+    weight: integer("weight").notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.artifactId, table.skillId] }),
+  }),
+);
+
 export const employeeSkills = sqliteTable(
   "employee_skills",
   {
@@ -171,6 +258,10 @@ export type User = typeof users.$inferSelect;
 export type Workspace = typeof workspaces.$inferSelect;
 export type Member = typeof members.$inferSelect;
 export type Invite = typeof invites.$inferSelect;
+export type Artifact = typeof artifacts.$inferSelect;
+export type ArtifactSkill = typeof artifactSkills.$inferSelect;
+export type Integration = typeof integrations.$inferSelect;
+export type Plan = typeof plans.$inferSelect;
 export type Employee = typeof employees.$inferSelect;
 export type Skill = typeof skills.$inferSelect;
 export type Track = typeof tracks.$inferSelect;

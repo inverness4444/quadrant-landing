@@ -6,6 +6,7 @@ import HeroSection from "@/components/sections/home/HeroSection";
 import AudienceSection from "@/components/sections/home/AudienceSection";
 import ProcessSection from "@/components/sections/home/ProcessSection";
 import CaseSection from "@/components/sections/home/CaseSection";
+import DemoLoginBanner from "@/components/marketing/DemoLoginBanner";
 import { contentService } from "@/services/contentService";
 import { Metadata } from "next";
 
@@ -39,6 +40,7 @@ export default function HomePage() {
   return (
     <div className="space-y-16">
       <HeroSection hero={hero} highlights={highlights} />
+      <DemoLoginBanner />
 
       <section className="space-y-6">
         <SectionTitle

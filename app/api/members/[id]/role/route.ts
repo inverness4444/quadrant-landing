@@ -8,7 +8,10 @@ const schema = z.object({
   role: z.enum(["owner", "admin", "member"]),
 });
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+type RouteContext = { params: Promise<{ id: string }> };
+
+export async function PATCH(request: NextRequest, { params }: RouteContext) {
+  const { id } = await params;
   const context = await getWorkspaceContextFromRequest(request);
   if (!context) {
     return NextResponse.json({ ok: false }, { status: 401 });
@@ -23,7 +26,6 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (!parsed.success) {
     return NextResponse.json({ ok: false, errors: parsed.error.flatten().fieldErrors }, { status: 400 });
   }
-  const { id } = params;
   const target = await findMember(context.workspace.id, id);
   if (!target) {
     return NextResponse.json({ ok: false }, { status: 404 });

@@ -5,6 +5,7 @@ export const talentsHero: HeroContent = {
   title: "Quadrant для специалистов",
   subtitle:
     "Видите, за что растёте, какие навыки уже на новом уровне и что стоит усилить, чтобы получить промо.",
+  primaryCta: { label: "Запросить демо", href: "/contact" },
 };
 
 export const talentCards: BenefitCard[] = [

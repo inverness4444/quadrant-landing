@@ -8,6 +8,27 @@
       "when": 1763165103182,
       "tag": "0000_modern_robbie_robertson",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1763165104182,
+      "tag": "0001_add_members_and_invites",
+      "breakpoints": false
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1763242430063,
+      "tag": "0002_youthful_major_mapleleaf",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1763244323925,
+      "tag": "0003_marvelous_the_fallen",
+      "breakpoints": true
     }
   ]
 }

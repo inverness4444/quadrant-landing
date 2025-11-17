@@ -13,10 +13,18 @@ export default defineConfig({
       reporter: ["text", "html"],
     },
     exclude: ["node_modules/**", "tests/e2e/**"],
+    sequence: {
+      concurrent: false,
+    },
+    maxConcurrency: 1,
   },
   resolve: {
-    alias: {
-      "@": resolve(rootDir, "."),
-    },
+    alias: [
+      {
+        find: /^@\//,
+        replacement: `${resolve(rootDir, ".")}/`,
+      },
+    ],
+    extensions: [".ts", ".tsx", ".js", ".mjs", ".jsx", ".json"],
   },
 });

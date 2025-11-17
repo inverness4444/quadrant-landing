@@ -1,30 +1,10 @@
-import nodemailer from "nodemailer";
 import { logger } from "@/services/logger";
-
-const {
-  CONTACT_SMTP_HOST,
-  CONTACT_SMTP_PORT,
-  CONTACT_SMTP_USER,
-  CONTACT_SMTP_PASS,
-} = process.env;
-
-let transporter: nodemailer.Transporter | null = null;
-
-if (CONTACT_SMTP_HOST && CONTACT_SMTP_PORT && CONTACT_SMTP_USER && CONTACT_SMTP_PASS) {
-  transporter = nodemailer.createTransport({
-    host: CONTACT_SMTP_HOST,
-    port: Number(CONTACT_SMTP_PORT),
-    secure: Number(CONTACT_SMTP_PORT) === 465,
-    auth: {
-      user: CONTACT_SMTP_USER,
-      pass: CONTACT_SMTP_PASS,
-    },
-  });
-}
+import { env } from "@/config/env";
+import { getMailTransport } from "@/services/mailTransport";
 
 const resolveBaseUrl = () => {
   const fallback = "http://localhost:3000";
-  const url = process.env.BASE_URL ?? fallback;
+  const url = env.baseUrl ?? fallback;
   return url.replace(/\/+$/, "");
 };
 
@@ -37,7 +17,8 @@ export async function sendInviteEmail({
   workspaceName: string;
   token: string;
 }) {
-  if (!transporter || !CONTACT_SMTP_USER) {
+  const transporter = getMailTransport();
+  if (!transporter || !env.smtp.user) {
     logger.warn("Invite email transport not configured, skipping invite notification");
     return;
   }
@@ -45,7 +26,7 @@ export async function sendInviteEmail({
   const link = `${resolveBaseUrl()}/auth/accept-invite?token=${encodeURIComponent(token)}`;
   try {
     await transporter.sendMail({
-      from: `"Quadrant" <${CONTACT_SMTP_USER}>`,
+      from: `"Quadrant" <${env.smtp.user}>`,
       to: email,
       subject: `Приглашение в Quadrant`,
       text: `Вас пригласили присоединиться к workspace "${workspaceName}" в Quadrant.\n\nНажмите на ссылку ниже, чтобы принять приглашение:\n${link}\n\nЕсли вы не ожидали этого письма, просто проигнорируйте его.`,

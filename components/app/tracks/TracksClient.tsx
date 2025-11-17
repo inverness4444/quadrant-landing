@@ -6,6 +6,7 @@ import Card from "@/components/common/Card";
 import PrimaryButton from "@/components/common/PrimaryButton";
 import TrackFormModal from "@/components/app/tracks/TrackFormModal";
 import type { Employee, Track, TrackLevel } from "@/drizzle/schema";
+import { buildCsrfHeader } from "@/lib/csrf";
 
 type TracksClientProps = {
   tracks: Track[];
@@ -58,7 +59,7 @@ export default function TracksClient({ tracks, trackLevels, employees }: TracksC
     setModalError(null);
     const response = await fetch("/api/app/tracks", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...buildCsrfHeader() },
       body: JSON.stringify(payload),
     });
     setSaving(false);
@@ -76,7 +77,7 @@ export default function TracksClient({ tracks, trackLevels, employees }: TracksC
     setRenameLoading(true);
     const response = await fetch(`/api/app/tracks/${activeTrack.id}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...buildCsrfHeader() },
       body: JSON.stringify({ name: renameValue }),
     });
     setRenameLoading(false);
@@ -90,7 +91,7 @@ export default function TracksClient({ tracks, trackLevels, employees }: TracksC
   const handleLevelUpdate = async (level: TrackLevel, description: string) => {
     const response = await fetch(`/api/app/track-levels/${level.id}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...buildCsrfHeader() },
       body: JSON.stringify({ description }),
     });
     if (!response.ok) {
@@ -107,8 +108,10 @@ export default function TracksClient({ tracks, trackLevels, employees }: TracksC
   useEffect(() => {
     if (activeTrack) {
       setRenameValue(activeTrack.name);
+    } else {
+      setRenameValue("");
     }
-  }, [activeTrack?.id, activeTrack?.name]);
+  }, [activeTrack]);
 
   const activeEmployees = activeTrack ? employeesByTrack.get(activeTrack.id) ?? [] : [];
 

@@ -1,12 +1,11 @@
 import type { Config } from "drizzle-kit";
-
-const dbUrl = process.env.DATABASE_URL ?? "file:./data/quadrant.db";
+import { env } from "./config/env";
 
 export default {
   schema: "./drizzle/schema.ts",
   out: "./drizzle/migrations",
   dialect: "sqlite",
   dbCredentials: {
-    url: dbUrl,
+    url: env.databaseUrl,
   },
 } satisfies Config;

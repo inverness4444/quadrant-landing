@@ -2,21 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/services/rbac";
 import { getWorkspaceContextFromRequest } from "@/lib/workspaceContext";
 import { findInviteById, markExpired } from "@/repositories/inviteRepository";
+import {
+  authRequiredError,
+  forbiddenError,
+  notFoundError,
+  respondWithApiError,
+} from "@/services/apiError";
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+type RouteContext = { params: Promise<{ id: string }> };
+
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
+  const { id } = await params;
   const context = await getWorkspaceContextFromRequest(request);
   if (!context) {
-    return NextResponse.json({ ok: false }, { status: 401 });
+    return respondWithApiError(authRequiredError());
   }
   try {
     await requireRole(context.workspace.id, context.user.id, ["owner", "admin"]);
   } catch {
-    return NextResponse.json({ ok: false }, { status: 403 });
+    return respondWithApiError(forbiddenError());
   }
-  const { id } = params;
   const invite = await findInviteById(id);
   if (!invite || invite.workspaceId !== context.workspace.id) {
-    return NextResponse.json({ ok: false }, { status: 404 });
+    return respondWithApiError(notFoundError("Приглашение не найдено"));
   }
   await markExpired(id);
   return NextResponse.json({ ok: true });

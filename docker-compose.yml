@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  app:
+    container_name: quadrant_app
+    build:
+      context: .
+      target: runner
+      args:
+        NODE_VERSION: 20
+    environment:
+      NODE_ENV: production
+      PORT: ${PORT:-3000}
+      DATABASE_URL: ${DATABASE_URL:-file:/app/data/quadrant.db}
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  app-dev:
+    profiles: ["dev"]
+    container_name: quadrant_app_dev
+    build:
+      context: .
+      target: dev
+      args:
+        NODE_VERSION: 20
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: ${DATABASE_URL:-file:/app/data/quadrant.db}
+    command: npm run dev
+    volumes:
+      - .:/app
+      - dev-node-modules:/app/node_modules
+      - ./data:/app/data
+    ports:
+      - "3001:3000"
+
+volumes:
+  dev-node-modules:

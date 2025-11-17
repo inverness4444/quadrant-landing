@@ -3,33 +3,45 @@ import { db } from "@/lib/db";
 import {
   employeeSkills,
   employees,
+  artifacts,
+  artifactSkills,
+  integrations,
+  invites,
+  members,
   skills,
   tracks,
   trackLevels,
   users,
   workspaces,
 } from "@/drizzle/schema";
-import { createSkill, listSkills } from "@/repositories/skillRepository";
+import { createSkill } from "@/repositories/skillRepository";
 import {
   createEmployee,
   listEmployees,
   listEmployeeSkillsByWorkspace,
 } from "@/repositories/employeeRepository";
 import { createTrack, listTrackLevels } from "@/repositories/trackRepository";
-import { getOverviewMetrics } from "@/services/dashboardService";
+import { getWorkspaceOverview } from "@/services/analyticsService";
 import { createUser } from "@/repositories/userRepository";
 import { createWorkspace } from "@/repositories/workspaceRepository";
+import { ensureDefaultTestPlan } from "@/tests/utils/planTestHelper";
 
 const workspaceName = "Test Workspace";
 
 beforeEach(async () => {
+  await db.delete(artifactSkills).run();
+  await db.delete(artifacts).run();
+  await db.delete(integrations).run();
   await db.delete(employeeSkills).run();
   await db.delete(employees).run();
+  await db.delete(invites).run();
+  await db.delete(members).run();
   await db.delete(trackLevels).run();
   await db.delete(tracks).run();
   await db.delete(skills).run();
   await db.delete(workspaces).run();
   await db.delete(users).run();
+  await ensureDefaultTestPlan();
 });
 
 async function createWorkspaceWithOwner() {
@@ -38,10 +50,12 @@ async function createWorkspaceWithOwner() {
     passwordHash: "hash",
     name: "Tester",
   });
+  const plan = await ensureDefaultTestPlan();
   const workspace = await createWorkspace({
     name: workspaceName,
     ownerUserId: user.id,
     size: "20-100",
+    planId: plan?.id,
   });
   return workspace.id;
 }
@@ -85,10 +99,9 @@ describe("data layer", () => {
       level: "Junior",
       skills: [{ skillId: skill.id, level: 3 }],
     });
-    const metrics = await getOverviewMetrics(workspaceId);
-    expect(metrics.employees).toBe(1);
-    expect(metrics.skills).toBe(1);
-    expect(metrics.averageSkillLevel).toBe(3);
-    expect(metrics.levelDistribution.find((item) => item.level === "Junior")?.count).toBe(1);
+    const metrics = await getWorkspaceOverview(workspaceId);
+    expect(metrics.employeesCount).toBe(1);
+    expect(metrics.skillsCount).toBe(1);
+    expect(metrics.plan.currentEmployeesCount).toBe(1);
   });
 });

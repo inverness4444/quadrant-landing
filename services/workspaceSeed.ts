@@ -5,7 +5,7 @@ import {
   type EmployeePayload,
 } from "@/repositories/employeeRepository";
 import { createSkill, listSkills } from "@/repositories/skillRepository";
-import { createTrack, findTrackById, listTrackLevelsByWorkspace, listTracks } from "@/repositories/trackRepository";
+import { createTrack, listTrackLevelsByWorkspace, listTracks } from "@/repositories/trackRepository";
 
 const skillDefinitions: Array<{ name: string; type: SkillType }> = [
   { name: "Golang", type: "hard" },

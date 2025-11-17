@@ -2,11 +2,9 @@
 
 import { useEffect } from "react";
 import PrimaryButton from "@/components/common/PrimaryButton";
-import { monitoringService } from "@/services/monitoringService";
-
 export default function GlobalError({ error, reset }: { error: Error; reset: () => void }) {
   useEffect(() => {
-    monitoringService.captureException(error, { source: "global-error" });
+    console.error("Global error captured", error);
   }, [error]);
 
   return (

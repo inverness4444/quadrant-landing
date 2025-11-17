@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { createWorkspaceOwnerAccount } from "./helpers/db";
 
 test("navigation works", async ({ page }) => {
   await page.goto("/");
@@ -55,9 +56,7 @@ test("login flow works for existing user", async ({ page }) => {
   const timestamp = Date.now();
   const email = `playwright-login-${timestamp}@example.com`;
   const password = "secret123";
-  await page.request.post("/api/auth/register", {
-    data: { email, password, companyName: "Login Flow" },
-  });
+  await createWorkspaceOwnerAccount(email, password);
   await page.context().clearCookies();
   await page.goto("/auth/login");
   await page.getByLabel("Email").fill(email);

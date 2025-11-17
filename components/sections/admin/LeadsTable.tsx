@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import type { Lead } from "@/drizzle/schema";
 
 type LeadsTableProps = {
-  initialLeads: Lead[];
+  initialLeads: (Lead & { suspicious?: boolean })[];
 };
 
 export default function LeadsTable({ initialLeads }: LeadsTableProps) {

@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getWorkspaceContextFromRequest } from "@/lib/workspaceContext";
 import { removeEmployee, updateEmployee } from "@/repositories/employeeRepository";
+import { requireRole } from "@/services/rbac";
+import {
+  authRequiredError,
+  forbiddenError,
+  internalError,
+  notFoundError,
+  respondWithApiError,
+  validationError,
+} from "@/services/apiError";
 
 const payloadSchema = z.object({
   name: z.string().min(2),
@@ -19,33 +28,53 @@ const payloadSchema = z.object({
     .optional(),
 });
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+type RouteContext = { params: Promise<{ id: string }> };
+
+export async function PUT(request: NextRequest, { params }: RouteContext) {
+  const { id } = await params;
   const context = await getWorkspaceContextFromRequest(request);
   if (!context) {
-    return NextResponse.json({ ok: false }, { status: 401 });
+    return respondWithApiError(authRequiredError());
+  }
+  try {
+    await requireRole(context.workspace.id, context.user.id, ["owner", "admin"]);
+  } catch {
+    return respondWithApiError(forbiddenError());
   }
   const json = await request.json();
   const parsed = payloadSchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, errors: parsed.error.flatten().fieldErrors }, { status: 400 });
+    return respondWithApiError(validationError(parsed.error.flatten().fieldErrors));
   }
   try {
-    const employee = await updateEmployee(context.workspace.id, params.id, parsed.data);
+    const employee = await updateEmployee(context.workspace.id, id, parsed.data);
     return NextResponse.json({ ok: true, employee });
   } catch (error) {
-    return NextResponse.json({ ok: false, message: (error as Error).message }, { status: 400 });
+    if ((error as Error).message === "EMPLOYEE_NOT_FOUND") {
+      return respondWithApiError(notFoundError("Сотрудник не найден"));
+    }
+    return respondWithApiError(await internalError(error, { route: "employees:update" }));
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
+  const { id } = await params;
   const context = await getWorkspaceContextFromRequest(request);
   if (!context) {
-    return NextResponse.json({ ok: false }, { status: 401 });
+    return respondWithApiError(authRequiredError());
   }
   try {
-    await removeEmployee(context.workspace.id, params.id);
+    await requireRole(context.workspace.id, context.user.id, ["owner", "admin"]);
+  } catch {
+    return respondWithApiError(forbiddenError());
+  }
+  try {
+    await removeEmployee(context.workspace.id, id);
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json({ ok: false, message: (error as Error).message }, { status: 400 });
+    if ((error as Error).message === "EMPLOYEE_NOT_FOUND") {
+      return respondWithApiError(notFoundError("Сотрудник не найден"));
+    }
+    return respondWithApiError(await internalError(error, { route: "employees:delete" }));
   }
 }

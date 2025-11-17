@@ -1,6 +1,6 @@
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import path from "path";
-import { db } from "@/lib/db";
+import { db } from "../lib/db";
 
 async function runMigrations() {
   const migrationsFolder = path.resolve(process.cwd(), "drizzle/migrations");

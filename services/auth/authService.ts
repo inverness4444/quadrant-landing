@@ -1,7 +1,8 @@
 import bcrypt from "bcryptjs";
-import { createUser, findUserByEmail, findUserById, updateUser } from "@/repositories/userRepository";
+import { createUser, findUserByEmail, updateUser } from "@/repositories/userRepository";
 import { createWorkspace, findWorkspaceById, updateWorkspace } from "@/repositories/workspaceRepository";
 import { createMember, findMemberByUserId } from "@/repositories/memberRepository";
+import { ensureDefaultPlanSeeded, findDefaultPlan } from "@/repositories/planRepository";
 import { seedWorkspaceDemoData } from "@/services/workspaceSeed";
 import { getAppContext } from "@/services/appContext";
 
@@ -10,11 +11,13 @@ export async function registerUser({
   password,
   name,
   companyName,
+  inviteToken,
 }: {
   email: string;
   password: string;
   name?: string;
-  companyName: string;
+  companyName?: string;
+  inviteToken?: string;
 }) {
   const existing = await findUserByEmail(email);
   if (existing) {
@@ -29,9 +32,26 @@ export async function registerUser({
     name,
   });
 
+  if (inviteToken) {
+    return { userId: user.id, workspaceId: null };
+  }
+
+  if (!companyName) {
+    throw new Error("COMPANY_REQUIRED");
+  }
+
+  let defaultPlan = await findDefaultPlan();
+  if (!defaultPlan) {
+    await ensureDefaultPlanSeeded();
+    defaultPlan = await findDefaultPlan();
+  }
+  const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
   const workspace = await createWorkspace({
     name: companyName,
     ownerUserId: user.id,
+    planId: defaultPlan?.id,
+    trialEndsAt,
+    billingEmail: email,
   });
 
   await createMember({
@@ -51,10 +71,10 @@ export async function validateUser(email: string, password: string) {
   if (!valid) return null;
   const member = await findMemberByUserId(user.id);
   if (!member) {
-    return null;
+    return { user, workspace: null };
   }
   const workspace = await findWorkspaceById(member.workspaceId);
-  return workspace ? { user, workspace } : null;
+  return workspace ? { user, workspace } : { user, workspace: null };
 }
 
 export async function getUserWithWorkspace(userId: string) {

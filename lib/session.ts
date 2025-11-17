@@ -1,23 +1,87 @@
 import { cookies } from "next/headers";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { env } from "@/config/env";
 
-const SESSION_COOKIE = "quadrant_session";
+export const SESSION_COOKIE = "quadrant_session";
+export const CSRF_COOKIE = "quadrant_csrf";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
-export async function setSession(userId: string) {
+const createCsrfToken = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).slice(2);
+};
+
+export async function setSession(userId: string, response?: NextResponse) {
+  const csrfToken = createCsrfToken();
+  if (response) {
+    response.cookies.set(SESSION_COOKIE, userId, {
+      httpOnly: true,
+      secure: env.isProduction,
+      path: "/",
+      maxAge: SESSION_MAX_AGE,
+      sameSite: "lax",
+    });
+    response.cookies.set(CSRF_COOKIE, csrfToken, {
+      httpOnly: false,
+      secure: env.isProduction,
+      path: "/",
+      maxAge: SESSION_MAX_AGE,
+      sameSite: "lax",
+    });
+    return;
+  }
   const store = await cookies();
   store.set(SESSION_COOKIE, userId, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: env.isProduction,
+    path: "/",
+    maxAge: SESSION_MAX_AGE,
+    sameSite: "lax",
+  });
+  store.set(CSRF_COOKIE, csrfToken, {
+    httpOnly: false,
+    secure: env.isProduction,
     path: "/",
     maxAge: SESSION_MAX_AGE,
     sameSite: "lax",
   });
 }
 
-export async function clearSession() {
+export async function clearSession(response?: NextResponse) {
+  if (response) {
+    response.cookies.set(SESSION_COOKIE, "", {
+      httpOnly: true,
+      secure: env.isProduction,
+      path: "/",
+      maxAge: 0,
+      sameSite: "lax",
+    });
+    response.cookies.set(CSRF_COOKIE, "", {
+      httpOnly: false,
+      secure: env.isProduction,
+      path: "/",
+      maxAge: 0,
+      sameSite: "lax",
+    });
+    return;
+  }
   const store = await cookies();
-  store.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
+  store.set(SESSION_COOKIE, "", {
+    httpOnly: true,
+    secure: env.isProduction,
+    path: "/",
+    maxAge: 0,
+    sameSite: "lax",
+  });
+  store.set(CSRF_COOKIE, "", {
+    httpOnly: false,
+    secure: env.isProduction,
+    path: "/",
+    maxAge: 0,
+    sameSite: "lax",
+  });
 }
 
 export async function getUserIdFromCookies() {

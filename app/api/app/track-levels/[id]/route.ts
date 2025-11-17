@@ -2,37 +2,54 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getWorkspaceContextFromRequest } from "@/lib/workspaceContext";
 import { findTrackLevelById, findTrackById, updateTrackLevel } from "@/repositories/trackRepository";
+import { requireRole } from "@/services/rbac";
+import {
+  authRequiredError,
+  forbiddenError,
+  internalError,
+  notFoundError,
+  respondWithApiError,
+  validationError,
+} from "@/services/apiError";
 
 const payloadSchema = z.object({
   name: z.string().min(2).optional(),
   description: z.string().min(2).optional(),
 });
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+type RouteContext = { params: Promise<{ id: string }> };
+
+export async function PUT(request: NextRequest, { params }: RouteContext) {
+  const { id } = await params;
   const context = await getWorkspaceContextFromRequest(request);
   if (!context) {
-    return NextResponse.json({ ok: false }, { status: 401 });
+    return respondWithApiError(authRequiredError());
+  }
+  try {
+    await requireRole(context.workspace.id, context.user.id, ["owner", "admin"]);
+  } catch {
+    return respondWithApiError(forbiddenError());
   }
   const json = await request.json();
   const parsed = payloadSchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ ok: false, errors: parsed.error.flatten().fieldErrors }, { status: 400 });
+    return respondWithApiError(validationError(parsed.error.flatten().fieldErrors));
   }
   if (!parsed.data.name && !parsed.data.description) {
-    return NextResponse.json({ ok: false, message: "Нет изменений" }, { status: 400 });
+    return respondWithApiError(validationError({ general: ["Нет изменений"] }));
   }
   try {
-    const existingLevel = await findTrackLevelById(params.id);
+    const existingLevel = await findTrackLevelById(id);
     if (!existingLevel) {
-      return NextResponse.json({ ok: false, message: "Уровень не найден" }, { status: 404 });
+      return respondWithApiError(notFoundError("Уровень не найден"));
     }
     const track = await findTrackById(existingLevel.trackId);
     if (!track || track.workspaceId !== context.workspace.id) {
-      return NextResponse.json({ ok: false, message: "Уровень не найден" }, { status: 404 });
+      return respondWithApiError(notFoundError("Уровень не найден"));
     }
-    const level = await updateTrackLevel(params.id, parsed.data);
+    const level = await updateTrackLevel(id, parsed.data);
     return NextResponse.json({ ok: true, level });
   } catch (error) {
-    return NextResponse.json({ ok: false, message: (error as Error).message }, { status: 400 });
+    return respondWithApiError(await internalError(error, { route: "track-levels:update" }));
   }
 }
