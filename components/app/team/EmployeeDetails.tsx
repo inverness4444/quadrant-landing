@@ -10,7 +10,7 @@ type SkillWithLevel = {
 };
 
 type ArtifactDetail = Artifact & {
-  skillDetails: Array<{ skill: Skill; weight: number }>;
+  skillDetails: Array<{ skill: Skill; confidence: number }>;
 };
 
 type EmployeeDetailsProps = {
@@ -54,7 +54,7 @@ export default function EmployeeDetails({ employee, skills, track, trackLevel, a
       if (!target) continue;
       const skill = skillLookup.get(assignment.skillId);
       if (!skill) continue;
-      target.skillDetails.push({ skill, weight: assignment.weight });
+      target.skillDetails.push({ skill, confidence: assignment.confidence ?? 0 });
     }
     return Array.from(grouped.values());
   }, [artifactState.artifacts, artifactState.artifactSkills, skillLookup]);
@@ -167,7 +167,7 @@ export default function EmployeeDetails({ employee, skills, track, trackLevel, a
               <div className="mt-2 flex flex-wrap gap-2">
                 {artifact.skillDetails.map((entry) => (
                   <Tag key={entry.skill.id}>
-                    {entry.skill.name} · вес {entry.weight}
+                    {entry.skill.name} · вклад {Math.round(entry.confidence * 100)}%
                   </Tag>
                 ))}
               </div>

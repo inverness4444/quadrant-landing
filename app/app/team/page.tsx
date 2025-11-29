@@ -5,7 +5,11 @@ import { listSkills } from "@/repositories/skillRepository";
 import { listTrackLevelsByWorkspace, listTracks } from "@/repositories/trackRepository";
 import { getEmployeePage } from "@/services/employeeData";
 
-export default async function TeamPage() {
+type TeamPageSearchParams = {
+  modal?: string | string[];
+};
+
+export default async function TeamPage({ searchParams }: { searchParams?: TeamPageSearchParams }) {
   const { workspace } = await requireWorkspaceContext();
   const [employeePage, skills, tracks, trackLevels, positions] = await Promise.all([
     getEmployeePage(workspace.id, { page: 1, pageSize: 20, level: "all" }),
@@ -14,6 +18,8 @@ export default async function TeamPage() {
     listTrackLevelsByWorkspace(workspace.id),
     listEmployeePositions(workspace.id),
   ]);
+  const modalParam = Array.isArray(searchParams?.modal) ? searchParams?.modal[0] : searchParams?.modal;
+  const openCreateModalOnMount = modalParam === "create";
 
   return (
     <TeamClient
@@ -24,6 +30,7 @@ export default async function TeamPage() {
       initialEmployeeSkills={employeePage.employeeSkills}
       pagination={{ page: employeePage.page, pageSize: employeePage.pageSize, total: employeePage.total }}
       positions={positions}
+      openCreateModalOnMount={openCreateModalOnMount}
     />
   );
 }

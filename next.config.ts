@@ -31,6 +31,9 @@ const nextConfig: NextConfig = {
       headers: securityHeaders,
     },
   ],
+  turbopack: {
+    root: __dirname,
+  },
 };
 
 export default nextConfig;

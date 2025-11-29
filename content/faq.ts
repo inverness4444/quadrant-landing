@@ -9,7 +9,7 @@ export const faqItems: FAQItem[] = [
   {
     question: "Какие системы подключаем на старте?",
     answer:
-      "Чаще всего это GitHub или GitLab, Jira, Confluence/Notion и Slack. Также подключаем Linear, Azure DevOps и внутренние базы знаний.",
+      "Чаще всего это GitHub или GitLab, Jira, Confluence/Notion и Slack. Также подключаем YouTrack, Azure DevOps и внутренние базы знаний.",
   },
   {
     question: "Сколько времени занимает запуск?",

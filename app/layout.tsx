@@ -6,6 +6,7 @@ import PwaRegister from "@/components/common/PwaRegister";
 import { getUserIdFromCookies } from "@/lib/session";
 import { getUserWithWorkspace } from "@/services/auth/authService";
 import type { HeaderSessionState } from "@/components/common/Header";
+import { env } from "@/config/env";
 import "./globals.css";
 
 const inter = Inter({
@@ -25,12 +26,16 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const session = await getInitialSession();
+  const demoEnabled = Boolean(env.demo.enabled);
+  const demoHref = demoEnabled ? "/auth/demo-login" : "/contact";
   return (
     <html lang="ru">
-      <body className={`${inter.variable} bg-brand-muted antialiased`}>
+      <body className={`${inter.variable} min-h-screen bg-transparent antialiased`}>
         <AnalyticsScripts />
         <PwaRegister />
-        <Layout session={session}>{children}</Layout>
+        <Layout session={session} demoEnabled={demoEnabled} demoHref={demoHref}>
+          {children}
+        </Layout>
       </body>
     </html>
   );

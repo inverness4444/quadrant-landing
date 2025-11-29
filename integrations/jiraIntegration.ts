@@ -3,15 +3,31 @@ import { listSkills } from "@/repositories/skillRepository";
 import type { DemoArtifactPayload, IntegrationClient } from "@/integrations/baseIntegration";
 
 const jiraSamples = [
-  { title: "JIRA-241: Improve login stability", description: "Фикс багов в процессе авторизации" },
-  { title: "JIRA-355: Feature flag rollout", description: "Подготовка прогрессивного включения фичи" },
-  { title: "JIRA-412: CRM sync optimisation", description: "Ускорение выгрузок в CRM" },
-  { title: "JIRA-518: Billing SLA dashboard", description: "Создание метрик для контроля SLA" },
+  { key: "JIRA-241", summary: "Фикс багов в процессе авторизации" },
+  { key: "JIRA-355", summary: "Подготовка прогрессивного включения фичи" },
+  { key: "JIRA-412", summary: "Ускорение выгрузок в CRM" },
+  { key: "JIRA-518", summary: "Создание метрик для контроля SLA" },
+  { key: "JIRA-603", summary: "Оптимизация очередей поддержки" },
 ];
 
-function randomWeights(skillIds: string[]) {
-  const chosen = skillIds.sort(() => Math.random() - 0.5).slice(0, Math.min(2, skillIds.length));
-  return chosen.map((id, index) => ({ skillId: id, weight: 3 - index }));
+function selectAssignees(employees: Awaited<ReturnType<typeof listEmployees>>, index: number) {
+  if (employees.length === 0) return [];
+  const owner = employees[index % employees.length];
+  const helper = employees[(index + 2) % employees.length];
+  const assignees = [{ employeeId: owner.id, role: "assignee" as const }];
+  if (helper && helper.id !== owner.id) {
+    assignees.push({ employeeId: helper.id, role: "commenter" as const });
+  }
+  return assignees;
+}
+
+function pickSkillConfidence(skillIds: string[]) {
+  if (skillIds.length === 0) return [];
+  const shuffled = [...skillIds].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, Math.min(3, skillIds.length)).map((id, idx) => ({
+    skillId: id,
+    confidence: Math.max(0.35, 0.85 - idx * 0.2),
+  }));
 }
 
 export class JiraIntegrationClient implements IntegrationClient {
@@ -23,16 +39,23 @@ export class JiraIntegrationClient implements IntegrationClient {
       return [];
     }
     const skillIds = skills.map((skill) => skill.id);
-    return employees.slice(0, Math.min(3, employees.length)).map((employee, index) => {
-      const sample = jiraSamples[index % jiraSamples.length];
-      return {
-        employeeId: employee.id,
-        type: "task" as const,
-        title: sample.title,
-        description: sample.description,
-        link: `https://jira.example.com/browse/${sample.title.split(":")[0]}`,
-        skills: randomWeights(skillIds),
-      };
-    });
+    const count = Math.min(6, Math.max(3, employees.length));
+    const artifacts: DemoArtifactPayload[] = [];
+    for (let i = 0; i < count; i += 1) {
+      const sample = jiraSamples[i % jiraSamples.length];
+      const createdAt = new Date(Date.now() - (i + 1) * 12 * 60 * 60 * 1000).toISOString();
+      artifacts.push({
+        externalId: sample.key,
+        type: "ticket",
+        title: `${sample.key}: ${sample.summary}`,
+        summary: sample.summary,
+        url: `https://jira.example.com/browse/${sample.key}`,
+        createdAt,
+        updatedAt: createdAt,
+        assignees: selectAssignees(employees, i),
+        skills: pickSkillConfidence(skillIds),
+      });
+    }
+    return artifacts;
   }
 }

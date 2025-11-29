@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Card from "@/components/common/Card";
@@ -29,6 +30,7 @@ type TeamClientProps = {
     total: number;
   };
   positions: string[];
+  openCreateModalOnMount?: boolean;
 };
 
 export default function TeamClient({
@@ -39,6 +41,7 @@ export default function TeamClient({
   initialEmployeeSkills,
   pagination,
   positions,
+  openCreateModalOnMount = false,
 }: TeamClientProps) {
   const router = useRouter();
   const [employeesState, setEmployeesState] = useState(initialEmployees);
@@ -173,6 +176,14 @@ const formatApiError = (payload: unknown, fallback: string) => {
     setModalOpen(true);
   };
 
+  useEffect(() => {
+    if (openCreateModalOnMount) {
+      setModalState({ mode: "create" });
+      setModalError(null);
+      setModalOpen(true);
+    }
+  }, [openCreateModalOnMount]);
+
   const openEditModal = (employee: EnrichedEmployee) => {
     setModalState({ mode: "edit", employee });
     setModalError(null);
@@ -243,7 +254,9 @@ const formatApiError = (payload: unknown, fallback: string) => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-brand-text">Команда</h1>
-          <p className="text-sm text-slate-600">Следите за навыками и прогрессом сотрудников</p>
+          <p className="text-sm text-slate-600">
+            Список сотрудников и их вклад в артефакты — кто тянет экспертизу и где нужны новые люди.
+          </p>
         </div>
         <PrimaryButton onClick={openCreateModal} className="px-4 py-2">
           Добавить сотрудника
@@ -252,92 +265,213 @@ const formatApiError = (payload: unknown, fallback: string) => {
       <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
         <Card className="space-y-4">
           <div className="grid gap-3 md:grid-cols-3">
-            <input
-              className="h-11 rounded-xl border border-brand-border px-4"
-              placeholder="Поиск по имени или позиции..."
-              value={filters.search}
-              onChange={(event) => handleSearchChange(event.target.value)}
-            />
-            <select
-              className="h-11 rounded-xl border border-brand-border px-4"
-              value={filters.level}
-              onChange={(event) => handleLevelChange(event.target.value)}
-            >
-              <option value="all">Все уровни</option>
-              <option value="Junior">Junior</option>
-              <option value="Middle">Middle</option>
-              <option value="Senior">Senior</option>
-            </select>
-            <select
-              className="h-11 rounded-xl border border-brand-border px-4"
-              value={filters.position}
-              onChange={(event) => handlePositionChange(event.target.value)}
-            >
-              <option value="all">Все позиции</option>
-              {positions.map((position) => (
-                <option key={position} value={position}>
-                  {position}
-                </option>
-              ))}
-            </select>
+            <label className="space-y-1 text-sm text-slate-500">
+              <span className="text-xs uppercase tracking-wide text-slate-400">Поиск</span>
+              <input
+                className="h-11 w-full rounded-xl border border-brand-border px-4"
+                placeholder="Имя, роль или трек"
+                value={filters.search}
+                onChange={(event) => handleSearchChange(event.target.value)}
+              />
+            </label>
+            <label className="space-y-1 text-sm text-slate-500">
+              <span className="text-xs uppercase tracking-wide text-slate-400">Уровень</span>
+              <select
+                className="h-11 w-full rounded-xl border border-brand-border px-4"
+                value={filters.level}
+                onChange={(event) => handleLevelChange(event.target.value)}
+              >
+                <option value="all">Все уровни</option>
+                <option value="Junior">Junior</option>
+                <option value="Middle">Middle</option>
+                <option value="Senior">Senior</option>
+              </select>
+            </label>
+            <label className="space-y-1 text-sm text-slate-500">
+              <span className="text-xs uppercase tracking-wide text-slate-400">Роль</span>
+              <select
+                className="h-11 w-full rounded-xl border border-brand-border px-4"
+                value={filters.position}
+                onChange={(event) => handlePositionChange(event.target.value)}
+              >
+                <option value="all">Все роли</option>
+                {positions.map((position) => (
+                  <option key={position} value={position}>
+                    {position}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-          <div className="overflow-x-auto">
+          <div>
             {filteredEmployees.length === 0 && !listLoading ? (
-              <div className="rounded-2xl border border-dashed border-brand-border p-8 text-center">
-                <p className="text-sm text-slate-600">Пока нет сотрудников. Добавьте первого, чтобы построить карту навыков.</p>
-                <PrimaryButton
-                  type="button"
-                  onClick={openCreateModal}
-                  className="mt-4 px-4 py-2"
-                >
+              <div className="rounded-3xl border border-dashed border-white/60 bg-white/80 p-8 text-center">
+                <p className="text-lg font-semibold text-brand-text">У вас пока нет сотрудников</p>
+                <p className="mt-2 text-sm text-slate-600">
+                  Добавьте хотя бы одного сотрудника, чтобы Quadrant мог строить карту навыков.
+                </p>
+                <PrimaryButton type="button" onClick={openCreateModal} className="mt-4 px-4 py-2">
                   Добавить сотрудника
                 </PrimaryButton>
               </div>
             ) : (
-              <table className="min-w-full text-left text-sm">
-                <thead>
-                  <tr className="text-xs uppercase tracking-wide text-slate-500">
-                    <th className="px-3 py-2">Имя</th>
-                    <th className="px-3 py-2">Позиция</th>
-                    <th className="px-3 py-2">Уровень</th>
-                    <th className="px-3 py-2">Навыки</th>
-                    <th className="px-3 py-2 text-right">Действия</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-brand-border">
-                  {filteredEmployees.map((employee) => (
-                    <tr
-                      key={employee.id}
-                      className={`cursor-pointer transition hover:bg-brand-muted/60 ${
-                        selectedId === employee.id ? "bg-brand-muted" : ""
-                      }`}
-                      onClick={() => setSelectedId(employee.id)}
-                    >
-                      <td className="px-3 py-3">
-                        <div className="font-semibold text-brand-text">{employee.name}</div>
-                        <p className="text-xs text-slate-500">
-                          {employee.track?.name || "Без трека"}
-                          {employee.trackLevel ? ` · ${employee.trackLevel.name}` : ""}
-                        </p>
-                      </td>
-                      <td className="px-3 py-3 text-slate-600">{employee.position}</td>
-                      <td className="px-3 py-3">
-                        <Tag>{employee.level}</Tag>
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="flex flex-wrap gap-2">
-                          {employee.skillDetails.slice(0, 4).map((entry) => (
-                            <Tag key={entry.skill.id}>
-                              {entry.skill.name} · {entry.level}/5
-                            </Tag>
-                          ))}
-                          {employee.skillDetails.length === 0 && (
-                            <span className="text-xs text-slate-500">Навыки не указаны</span>
-                          )}
+              <>
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="min-w-full text-left text-sm">
+                    <thead>
+                      <tr className="text-xs uppercase tracking-wide text-slate-500">
+                        <th className="px-3 py-2">Сотрудник</th>
+                        <th className="px-3 py-2">Роль</th>
+                        <th className="px-3 py-2">Навыки</th>
+                        <th className="px-3 py-2">Артефакты</th>
+                        <th className="px-3 py-2">Последняя активность</th>
+                        <th className="px-3 py-2 text-right">Действия</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-brand-border">
+                      {filteredEmployees.map((employee) => {
+                        const artifactSignals = employee.skillDetails.length;
+                        const artifactLabel =
+                          artifactSignals > 0
+                            ? `${artifactSignals} сигнал${artifactSignals === 1 ? "" : "а"}`
+                            : "Нет данных";
+                        return (
+                          <tr
+                            key={employee.id}
+                            className={`cursor-pointer transition hover:bg-brand-muted/60 ${
+                              selectedId === employee.id ? "bg-brand-muted" : ""
+                            }`}
+                            onClick={() => setSelectedId(employee.id)}
+                          >
+                            <td className="px-3 py-3">
+                              <div className="flex items-start gap-3">
+                                <div>
+                                  <div className="font-semibold text-brand-text">{employee.name}</div>
+                                  <p className="text-xs text-slate-500">
+                                    {employee.track ? (
+                                      <>
+                                        <Link href={`/app/team/${employee.track.id}`} className="font-semibold text-brand-primary">
+                                          {employee.track.name}
+                                        </Link>
+                                        {employee.trackLevel ? ` · ${employee.trackLevel.name}` : ""}
+                                      </>
+                                    ) : (
+                                      "Без трека"
+                                    )}
+                                  </p>
+                                </div>
+                                <Tag>{employee.level}</Tag>
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 text-slate-600">{employee.position}</td>
+                            <td className="px-3 py-3">
+                              <div className="flex flex-wrap gap-2">
+                                {employee.skillDetails.slice(0, 4).map((entry) => (
+                                  <Tag key={entry.skill.id}>
+                                    {entry.skill.name} · {entry.level}/5
+                                  </Tag>
+                                ))}
+                                {employee.skillDetails.length === 0 && (
+                                  <span className="text-xs text-slate-500">Навыки не указаны</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 text-sm text-slate-600">{artifactLabel}</td>
+                            <td className="px-3 py-3 text-sm text-slate-500">
+                              {formatActivityDate(employee.updatedAt)}
+                            </td>
+                            <td className="px-3 py-3 text-right">
+                              <div className="flex justify-end gap-2">
+                                <SecondaryButton href={`/app/employee/${employee.id}`} className="px-3 py-1 text-xs">
+                                  Профиль
+                                </SecondaryButton>
+                                <SecondaryButton
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    openEditModal(employee);
+                                  }}
+                                  className="px-3 py-1 text-xs"
+                                >
+                                  Редактировать
+                                </SecondaryButton>
+                                <button
+                                  type="button"
+                                  className="text-xs font-semibold text-red-500"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleDelete(employee);
+                                  }}
+                                >
+                                  Удалить
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="space-y-3 md:hidden">
+                  {filteredEmployees.map((employee) => {
+                    const artifactSignals = employee.skillDetails.length;
+                    const artifactLabel =
+                      artifactSignals > 0
+                        ? `${artifactSignals} сигнал${artifactSignals === 1 ? "" : "а"}`
+                        : "Нет данных";
+                    return (
+                      <div
+                        key={employee.id}
+                        className="rounded-3xl border border-brand-border bg-white px-4 py-4 shadow-sm"
+                        onClick={() => setSelectedId(employee.id)}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-base font-semibold text-brand-text">{employee.name}</p>
+                            <p className="text-sm text-slate-500">{employee.position}</p>
+                            <p className="text-xs text-slate-400">
+                              {employee.track ? (
+                                <>
+                                  <Link href={`/app/team/${employee.track.id}`} className="font-semibold text-brand-primary">
+                                    {employee.track.name}
+                                  </Link>
+                                  {employee.trackLevel ? ` · ${employee.trackLevel.name}` : ""}
+                                </>
+                              ) : (
+                                "Без трека"
+                              )}
+                            </p>
+                          </div>
+                          <Tag>{employee.level}</Tag>
                         </div>
-                      </td>
-                      <td className="px-3 py-3 text-right">
-                        <div className="flex justify-end gap-2">
+                        <div className="mt-3 space-y-1 text-sm text-slate-500">
+                          <p className="font-semibold text-brand-text">Навыки</p>
+                          <div className="flex flex-wrap gap-2">
+                            {employee.skillDetails.slice(0, 4).map((entry) => (
+                              <Tag key={entry.skill.id}>
+                                {entry.skill.name} · {entry.level}/5
+                              </Tag>
+                            ))}
+                            {employee.skillDetails.length === 0 && (
+                              <span className="text-xs text-slate-500">Навыки не указаны</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
+                          <span>Артефакты: {artifactLabel}</span>
+                          <span>Активность: {formatActivityDate(employee.updatedAt)}</span>
+                        </div>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <SecondaryButton
+                            href={`/app/employee/${employee.id}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                            }}
+                            className="px-3 py-1 text-xs"
+                          >
+                            Профиль
+                          </SecondaryButton>
                           <SecondaryButton
                             type="button"
                             onClick={(event) => {
@@ -359,11 +493,11 @@ const formatApiError = (payload: unknown, fallback: string) => {
                             Удалить
                           </button>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
           {listError && <p className="text-sm text-red-500">{listError}</p>}
@@ -373,27 +507,25 @@ const formatApiError = (payload: unknown, fallback: string) => {
               Показано {filteredEmployees.length} из {paginationState.total} сотрудников
             </p>
             <div className="flex items-center gap-2">
-              <PrimaryButton
+              <SecondaryButton
                 type="button"
-                variant="secondary"
                 disabled={!canPrev || listLoading}
                 onClick={() => fetchEmployees(paginationState.page - 1)}
                 className="px-3 py-1"
               >
                 Назад
-              </PrimaryButton>
+              </SecondaryButton>
               <span>
                 Страница {paginationState.page} / {totalPages}
               </span>
-              <PrimaryButton
+              <SecondaryButton
                 type="button"
-                variant="secondary"
                 disabled={!canNext || listLoading}
                 onClick={() => fetchEmployees(paginationState.page + 1)}
                 className="px-3 py-1"
               >
                 Вперёд
-              </PrimaryButton>
+              </SecondaryButton>
             </div>
           </div>
         </Card>
@@ -420,4 +552,13 @@ const formatApiError = (payload: unknown, fallback: string) => {
       />
     </div>
   );
+}
+
+function formatActivityDate(value?: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+  return date.toLocaleDateString("ru-RU", { day: "2-digit", month: "short" });
 }

@@ -1,16 +1,16 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
-import { useDictionary } from "@/hooks/useDictionary";
-import { trackEvent } from "@/services/analytics";
+import { FormEvent, useState } from "react";
+import PrimaryButton from "@/components/common/PrimaryButton";
 
 type FormState = {
   name: string;
   company: string;
   email: string;
-  headcount: string;
+  role: string;
+  size: string;
+  interests: string[];
   message: string;
-  honeypot?: string;
 };
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
@@ -19,223 +19,214 @@ const initialState: FormState = {
   name: "",
   company: "",
   email: "",
-  headcount: "",
+  role: "",
+  size: "",
+  interests: [],
   message: "",
 };
 
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const roleOptions = [
+  { value: "hr", label: "HR / People" },
+  { value: "lead", label: "Team Lead / Head" },
+  { value: "cto", label: "CTO / VP Eng" },
+  { value: "founder", label: "Founder" },
+  { value: "other", label: "Другое" },
+];
+
+const sizeOptions = [
+  { value: "0-50", label: "до 50" },
+  { value: "50-200", label: "50–200" },
+  { value: "200-500", label: "200–500" },
+  { value: "500-2000", label: "500–2000" },
+  { value: "2000+", label: "2000+" },
+];
+
+const interestOptions = [
+  { value: "pilot", label: "Пилот для команды" },
+  { value: "integrations", label: "Интеграция с текущими инструментами" },
+  { value: "pricing", label: "Оценка стоимости" },
+  { value: "personal", label: "Quadrant для личного профиля" },
+];
 
 export default function ContactForm() {
   const [formState, setFormState] = useState<FormState>(initialState);
   const [errors, setErrors] = useState<FormErrors>({});
-  const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">(
-    "idle",
-  );
-  const [renderedAt, setRenderedAt] = useState<number>(Date.now());
-  const dict = useDictionary();
+  const [status, setStatus] = useState<"idle" | "success">("idle");
 
-  useEffect(() => {
-    setRenderedAt(Date.now());
-  }, []);
-  const handleChange = (
-    field: keyof FormState,
-    value: FormState[keyof FormState],
-  ) => {
+  const handleChange = (field: keyof FormState, value: string | string[]) => {
     setFormState((prev) => ({ ...prev, [field]: value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
   };
 
+  const toggleInterest = (value: string) => {
+    setFormState((prev) => {
+      const exists = prev.interests.includes(value);
+      const interests = exists ? prev.interests.filter((item) => item !== value) : [...prev.interests, value];
+      return { ...prev, interests };
+    });
+  };
+
   const validate = () => {
     const nextErrors: FormErrors = {};
-    if (!formState.name.trim()) nextErrors.name = "Введите имя";
+    if (!formState.name.trim()) nextErrors.name = "Укажите имя и фамилию";
     if (!formState.company.trim()) nextErrors.company = "Укажите компанию";
-    if (!formState.email.trim() || !emailRegex.test(formState.email)) {
-      nextErrors.email = "Укажите корректный email";
+    if (!formState.email.trim() || !formState.email.includes("@")) {
+      nextErrors.email = "Введите рабочий email";
     }
-    if (!formState.headcount) nextErrors.headcount = "Выберите диапазон";
-    if (!formState.message.trim()) {
-      nextErrors.message = "Напишите короткий комментарий";
-    }
+    if (!formState.role) nextErrors.role = "Выберите роль";
+    if (!formState.size) nextErrors.size = "Выберите размер компании";
     return nextErrors;
   };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const validationErrors = validate();
-    setErrors(validationErrors);
-    if (Object.keys(validationErrors).length > 0) return;
-
-    setStatus("submitting");
-    try {
-      const response = await fetch("/api/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formState,
-          renderedAt,
-          submittedAt: Date.now(),
-          honeypot: formState.honeypot,
-        }),
-      });
-      if (!response.ok) throw new Error("Request failed");
-      trackEvent("lead_submitted", { email: formState.email });
-      setStatus("success");
-      setFormState(initialState);
-      setRenderedAt(Date.now());
-    } catch (error) {
-      console.error(error);
-      setStatus("error");
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      setStatus("idle");
+      return;
     }
+    console.log("Contact form submission", formState);
+    setStatus("success");
+    setFormState(initialState);
+    setErrors({});
   };
 
-  const inputClasses = (field: keyof FormState) => {
-    const base =
-      "h-12 rounded-xl border px-4 text-brand-text outline-none transition focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/20";
-    return `${base} ${
-      errors[field] ? "border-red-400 focus:ring-red-100" : "border-brand-border"
+  const inputClasses = (field: keyof FormState) =>
+    `h-12 rounded-2xl border px-4 text-brand-text outline-none transition focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/20 ${
+      errors[field] ? "border-red-400 focus:ring-red-100" : "border-white/70"
     }`;
-  };
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="rounded-3xl border border-brand-border bg-white p-6 shadow-sm"
+      className="rounded-[28px] border border-white/70 bg-white/95 p-8 shadow-[0_25px_60px_rgba(15,23,42,0.08)]"
     >
-      <div className="grid gap-5">
-        <label className="sr-only" aria-hidden="true">
-          Сайт
-          <input
-            type="text"
-            tabIndex={-1}
-            autoComplete="off"
-            value={formState.honeypot ?? ""}
-            onChange={(event) => handleChange("honeypot", event.target.value)}
-            className="hidden"
-          />
-        </label>
-        <div className="grid gap-2">
+      <div className="space-y-5">
+        {status === "success" && (
+          <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700" role="status">
+            Спасибо! Мы получили вашу заявку и скоро свяжемся с вами.
+          </div>
+        )}
+        <div className="space-y-2">
           <label htmlFor="name" className="text-sm font-semibold text-slate-700">
-            {dict.contactForm.name}
+            Имя и фамилия*
           </label>
           <input
             id="name"
             name="name"
             value={formState.name}
-            onChange={(event) => handleChange("name", event.target.value)}
+            onChange={(e) => handleChange("name", e.target.value)}
             className={inputClasses("name")}
+            placeholder="Алексей Смирнов"
           />
-          {errors.name && (
-            <p className="text-xs text-red-500">{errors.name}</p>
-          )}
+          {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
         </div>
-        <div className="grid gap-2">
-          <label
-            htmlFor="company"
-            className="text-sm font-semibold text-slate-700"
-          >
-            {dict.contactForm.company}
+        <div className="space-y-2">
+          <label htmlFor="company" className="text-sm font-semibold text-slate-700">
+            Компания*
           </label>
           <input
             id="company"
             name="company"
             value={formState.company}
-            onChange={(event) => handleChange("company", event.target.value)}
+            onChange={(e) => handleChange("company", e.target.value)}
             className={inputClasses("company")}
+            placeholder="Quadrant"
           />
-          {errors.company && (
-            <p className="text-xs text-red-500">{errors.company}</p>
-          )}
+          {errors.company && <p className="text-xs text-red-500">{errors.company}</p>}
         </div>
-        <div className="grid gap-2">
-          <label
-            htmlFor="email"
-            className="text-sm font-semibold text-slate-700"
-          >
-            {dict.contactForm.email}
+        <div className="space-y-2">
+          <label htmlFor="email" className="text-sm font-semibold text-slate-700">
+            Рабочий email*
           </label>
           <input
             id="email"
             name="email"
+            type="email"
             value={formState.email}
-            onChange={(event) => handleChange("email", event.target.value)}
+            onChange={(e) => handleChange("email", e.target.value)}
             className={inputClasses("email")}
+            placeholder="name@company.com"
           />
-          {errors.email && (
-            <p className="text-xs text-red-500">{errors.email}</p>
-          )}
+          {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
         </div>
-        <div className="grid gap-2">
-          <label
-            htmlFor="headcount"
-            className="text-sm font-semibold text-slate-700"
-          >
-            {dict.contactForm.headcount}
+        <div className="space-y-2">
+          <label htmlFor="role" className="text-sm font-semibold text-slate-700">
+            Роль*
           </label>
           <select
-            id="headcount"
-            name="headcount"
-            value={formState.headcount}
-            onChange={(event) => handleChange("headcount", event.target.value)}
-            className={inputClasses("headcount")}
+            id="role"
+            name="role"
+            value={formState.role}
+            onChange={(e) => handleChange("role", e.target.value)}
+            className={inputClasses("role")}
+          >
+            <option value="">Выберите роль</option>
+            {roleOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {errors.role && <p className="text-xs text-red-500">{errors.role}</p>}
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="size" className="text-sm font-semibold text-slate-700">
+            Размер компании*
+          </label>
+          <select
+            id="size"
+            name="size"
+            value={formState.size}
+            onChange={(e) => handleChange("size", e.target.value)}
+            className={inputClasses("size")}
           >
             <option value="">Выберите диапазон</option>
-            <option value="до 20">до 20</option>
-            <option value="20-100">20–100</option>
-            <option value="100-500">100–500</option>
-            <option value="500+">500+</option>
+            {sizeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
-          {errors.headcount && (
-            <p className="text-xs text-red-500">{errors.headcount}</p>
-          )}
+          {errors.size && <p className="text-xs text-red-500">{errors.size}</p>}
         </div>
-        <div className="grid gap-2">
-          <label
-            htmlFor="message"
-            className="text-sm font-semibold text-slate-700"
-          >
-            {dict.contactForm.message}
+        <div className="space-y-3">
+          <p className="text-sm font-semibold text-slate-700">Что вас интересует</p>
+          <div className="grid gap-2 text-sm text-slate-600">
+            {interestOptions.map((option) => (
+              <label key={option.value} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-300 text-brand-primary focus:ring-brand-primary/40"
+                  checked={formState.interests.includes(option.value)}
+                  onChange={() => toggleInterest(option.value)}
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="message" className="text-sm font-semibold text-slate-700">
+            Опишите задачу (необязательно)
           </label>
           <textarea
             id="message"
             name="message"
             rows={4}
             value={formState.message}
-            onChange={(event) => handleChange("message", event.target.value)}
-            className={`rounded-xl border px-4 py-3 text-brand-text outline-none transition focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/20 ${
-              errors.message
-                ? "border-red-400 focus:ring-red-100"
-                : "border-brand-border"
-            }`}
+            onChange={(e) => handleChange("message", e.target.value)}
+            className="rounded-2xl border border-white/70 px-4 py-3 text-brand-text outline-none transition focus:border-brand-primary focus:ring-4 focus:ring-brand-primary/20"
+            placeholder="Например: хотим запустить пилот на 3 командах и увидеть карту навыков."
           />
-          {errors.message && (
-            <p className="text-xs text-red-500">{errors.message}</p>
-          )}
         </div>
-        <button
-          type="submit"
-          disabled={status === "submitting"}
-          className="inline-flex h-12 items-center justify-center rounded-full bg-brand-primary px-6 text-base font-semibold text-white transition hover:bg-brand-accent disabled:opacity-60"
-        >
-          {status === "submitting"
-            ? dict.contactForm.submitting
-            : dict.contactForm.submit}
-        </button>
-        {status === "success" && (
-          <p
-            role="status"
-            className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
-          >
-            Спасибо! Мы свяжемся с вами в ближайшее время.
-          </p>
-        )}
-        {status === "error" && (
-          <p
-            role="status"
-            className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600"
-          >
-            Что-то пошло не так, попробуйте ещё раз.
-          </p>
-        )}
+        <div className="space-y-2">
+          <PrimaryButton type="submit" className="w-full justify-center">
+            Отправить заявку
+          </PrimaryButton>
+          <p className="text-center text-xs text-slate-500">Мы ответим в течение 1–2 рабочих дней.</p>
+        </div>
       </div>
     </form>
   );

@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { test, expect } from "@playwright/test";
 import {
   getWorkspaceSnapshotByOwnerEmail,
@@ -9,8 +10,11 @@ import {
   getInviteById,
   waitForWorkspaceSnapshotByOwnerEmail,
 } from "./helpers/db";
+import { db } from "../../lib/db";
+import { employees, skills, tracks, integrations, invites } from "../../drizzle/schema";
 
 const PASSWORD = "secret123";
+const APP_LOAD_TIMEOUT = 90000;
 
 function uniqueEmail(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.round(Math.random() * 10_000)}@example.com`;
@@ -25,8 +29,8 @@ async function registerWorkspace(page: import("@playwright/test").Page) {
   await page.getByLabel("Пароль").fill(PASSWORD);
   await page.getByLabel("Компания / Workspace").fill(company);
   await page.getByRole("button", { name: "Создать аккаунт" }).click();
-  await page.waitForURL(/\/app(\/.*)?$/, { timeout: 15000 });
-  await expect(page.getByRole("heading", { name: "Обзор" })).toBeVisible();
+  await page.waitForURL(/\/app(\/.*)?$/, { timeout: APP_LOAD_TIMEOUT });
+  await expect(page.getByRole("heading", { name: "Обзор компании" })).toBeVisible({ timeout: APP_LOAD_TIMEOUT });
   return { email, company };
 }
 
@@ -56,12 +60,14 @@ test.describe("core flows", () => {
     const inviteContext = await browser.newContext();
     const invitePage = await inviteContext.newPage();
     await invitePage.goto(`/auth/accept-invite?token=${invite.token}`);
+    await expect(invitePage.getByRole("link", { name: "Зарегистрироваться" })).toBeVisible({ timeout: APP_LOAD_TIMEOUT });
     await invitePage.getByRole("link", { name: "Зарегистрироваться" }).click();
+    await invitePage.waitForURL(/\/auth\/register/, { timeout: APP_LOAD_TIMEOUT });
     await invitePage.getByLabel("Имя").fill("Invited User");
     await invitePage.getByLabel("Пароль").fill(PASSWORD);
     await invitePage.getByRole("button", { name: "Продолжить" }).click();
-    await invitePage.waitForURL(/\/app(\/.*)?$/);
-    await expect(invitePage.getByRole("heading", { name: "Обзор" })).toBeVisible();
+    await invitePage.waitForURL(/\/app(\/.*)?$/, { timeout: APP_LOAD_TIMEOUT });
+    await expect(invitePage.getByRole("heading", { name: "Обзор компании" })).toBeVisible({ timeout: APP_LOAD_TIMEOUT });
     await inviteContext.close();
 
     const member = await findMemberByEmail(snapshot.workspace.id, inviteEmail);
@@ -87,6 +93,13 @@ test.describe("core flows", () => {
     expect(after).toBeGreaterThan(before);
   });
 
+  test("landing demo CTA authenticates demo workspace", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("link", { name: "Посмотреть демо" }).first().click();
+    await page.waitForURL(/\/app(\/.*)?$/, { timeout: APP_LOAD_TIMEOUT });
+    await expect(page.getByRole("heading", { name: "Обзор компании" })).toBeVisible({ timeout: APP_LOAD_TIMEOUT });
+  });
+
   test("plan limits block adding employees beyond quota", async ({ page }) => {
     const account = await registerWorkspace(page);
     const snapshot = await getWorkspaceSnapshotByOwnerEmail(account.email);
@@ -104,4 +117,81 @@ test.describe("core flows", () => {
     const limitMessage = page.getByText("Откройте вкладку «Тариф и биллинг»");
     await expect(limitMessage).toBeVisible();
   });
+
+  test("onboarding checklist updates after filling workspace data", async ({ page }) => {
+    const account = await registerWorkspace(page);
+    const panel = page.getByTestId("onboarding-panel");
+    await expect(panel).toBeVisible({ timeout: APP_LOAD_TIMEOUT });
+    await expect(page.getByTestId("onboarding-step-createdEmployee")).toHaveAttribute("data-complete", "false");
+    await expect(page.getByTestId("onboarding-step-connectedIntegration")).toHaveAttribute("data-complete", "false");
+
+    const snapshot = await waitForWorkspaceSnapshotByOwnerEmail(account.email);
+    await seedWorkspaceForOnboarding(snapshot.workspace.id);
+
+    await page.goto("/app");
+    await expect(page.getByTestId("onboarding-panel")).toHaveCount(0);
+  });
 });
+
+async function seedWorkspaceForOnboarding(workspaceId: string) {
+  const timestamp = new Date().toISOString();
+  await db
+    .insert(employees)
+    .values({
+      id: randomUUID(),
+      workspaceId,
+      name: "Checklist Employee",
+      position: "Engineer",
+      level: "Middle",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .run();
+  await db
+    .insert(skills)
+    .values({
+      id: randomUUID(),
+      workspaceId,
+      name: "Коммуникация",
+      type: "soft",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .run();
+  await db
+    .insert(tracks)
+    .values({
+      id: randomUUID(),
+      workspaceId,
+      name: "Engineering Track",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .run();
+  await db
+    .insert(integrations)
+    .values({
+      id: randomUUID(),
+      workspaceId,
+      type: "github",
+      status: "connected",
+      config: "{}",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .run();
+  await db
+    .insert(invites)
+    .values({
+      id: randomUUID(),
+      workspaceId,
+      email: `checklist-${Date.now()}@example.com`,
+      role: "member",
+      token: randomUUID(),
+      status: "pending",
+      expiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+    .run();
+}

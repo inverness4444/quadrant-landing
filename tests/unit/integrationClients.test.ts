@@ -80,6 +80,8 @@ describe("integration clients stubs", () => {
     const client = new GithubIntegrationClient();
     const payloads = await client.syncDemoArtifacts({ workspaceId });
     expect(payloads.length).toBeGreaterThan(0);
+    expect(payloads[0]?.assignees.length).toBeGreaterThan(0);
+    expect(payloads[0]?.externalId).toBeTruthy();
   });
 
   it("jira client produces demo artifacts", async () => {
@@ -87,6 +89,7 @@ describe("integration clients stubs", () => {
     const client = new JiraIntegrationClient();
     const payloads = await client.syncDemoArtifacts({ workspaceId });
     expect(payloads.length).toBeGreaterThan(0);
+    expect(payloads[0]?.type).toBeDefined();
   });
 
   it("notion client produces demo artifacts", async () => {
@@ -94,5 +97,6 @@ describe("integration clients stubs", () => {
     const client = new NotionIntegrationClient();
     const payloads = await client.syncDemoArtifacts({ workspaceId });
     expect(payloads.length).toBeGreaterThan(0);
+    expect(payloads[0]?.summary).toBeTruthy();
   });
 });

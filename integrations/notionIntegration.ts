@@ -3,16 +3,28 @@ import { listSkills } from "@/repositories/skillRepository";
 import type { DemoArtifactPayload, IntegrationClient } from "@/integrations/baseIntegration";
 
 const docSamples = [
-  { title: "Spec: Onboarding flow 2.0", description: "Обновлённый сценарий воронки активации" },
-  { title: "ADR: Data contracts governance", description: "Правила документирования контрактов" },
-  { title: "Guide: Incident response playbook", description: "Пошаговые инструкции для on-call" },
+  { title: "Spec: Onboarding flow 2.0", summary: "Обновлённый сценарий воронки активации" },
+  { title: "ADR: Data contracts governance", summary: "Правила документирования контрактов" },
+  { title: "Guide: Incident response playbook", summary: "Пошаговые инструкции для on-call" },
+  { title: "Research: Product analytics stack", summary: "Анализ метрик и источников" },
 ];
 
-function selectSkills(skillIds: string[]) {
-  return skillIds.slice(0, Math.max(1, Math.min(2, skillIds.length))).map((id) => ({
-    skillId: id,
-    weight: 2,
-  }));
+function buildDocAssignees(employees: Awaited<ReturnType<typeof listEmployees>>, index: number) {
+  if (employees.length === 0) return [];
+  const author = employees[index % employees.length];
+  const reviewer = employees[(index + 2) % employees.length];
+  const assignees = [{ employeeId: author.id, role: "author" as const }];
+  if (reviewer && reviewer.id !== author.id) {
+    assignees.push({ employeeId: reviewer.id, role: "commenter" as const });
+  }
+  return assignees;
+}
+
+function pickDocumentationSkills(skillIds: string[]) {
+  if (skillIds.length === 0) return [];
+  return skillIds
+    .slice(0, Math.min(2, skillIds.length))
+    .map((id) => ({ skillId: id, confidence: 0.6 }));
 }
 
 export class NotionIntegrationClient implements IntegrationClient {
@@ -24,16 +36,23 @@ export class NotionIntegrationClient implements IntegrationClient {
       return [];
     }
     const skillIds = skills.map((skill) => skill.id);
-    return docSamples.slice(0, Math.min(docSamples.length, employees.length)).map((sample, index) => {
-      const employee = employees[index % employees.length];
-      return {
-        employeeId: employee.id,
-        type: "doc" as const,
+    const docsCount = Math.min(docSamples.length, Math.max(3, employees.length));
+    const artifacts: DemoArtifactPayload[] = [];
+    for (let i = 0; i < docsCount; i += 1) {
+      const sample = docSamples[i % docSamples.length];
+      const createdAt = new Date(Date.now() - (i + 2) * 24 * 60 * 60 * 1000).toISOString();
+      artifacts.push({
+        externalId: `DOC-${50 + i}`,
+        type: "doc",
         title: sample.title,
-        description: sample.description,
-        link: "https://www.notion.so/demo",
-        skills: selectSkills(skillIds),
-      };
-    });
+        summary: sample.summary,
+        url: "https://www.notion.so/quadrant/demo",
+        createdAt,
+        updatedAt: createdAt,
+        assignees: buildDocAssignees(employees, i),
+        skills: pickDocumentationSkills(skillIds),
+      });
+    }
+    return artifacts;
   }
 }

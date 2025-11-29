@@ -18,6 +18,21 @@ services:
       - ./data:/app/data
     restart: unless-stopped
 
+  migrate:
+    profiles: ["migrate"]
+    container_name: quadrant_app_migrate
+    build:
+      context: .
+      target: runner
+      args:
+        NODE_VERSION: 20
+    command: ["npm", "run", "db:migrate"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-file:/app/data/quadrant.db}
+    volumes:
+      - ./data:/app/data
+
   app-dev:
     profiles: ["dev"]
     container_name: quadrant_app_dev

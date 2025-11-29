@@ -18,10 +18,11 @@ import {
   validationError,
 } from "@/services/apiError";
 
-const typeEnum = z.enum(["github", "jira", "notion"]);
+const typeEnum = z.enum(["github", "jira", "notion", "linear", "custom"]);
 
 const schema = z.object({
   type: typeEnum,
+  name: z.string().min(2).optional(),
   config: z.record(z.string(), z.any()).optional(),
 });
 
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest) {
       const created = await createIntegration({
         workspaceId: context.workspace.id,
         type: parsed.data.type,
+        name: parsed.data.name ?? descriptor.displayName,
         config: parsed.data.config ?? {},
         status: "connected",
       });

@@ -12,9 +12,15 @@ type TracksClientProps = {
   tracks: Track[];
   trackLevels: TrackLevel[];
   employees: Employee[];
+  openCreateModalOnMount?: boolean;
 };
 
-export default function TracksClient({ tracks, trackLevels, employees }: TracksClientProps) {
+export default function TracksClient({
+  tracks,
+  trackLevels,
+  employees,
+  openCreateModalOnMount = false,
+}: TracksClientProps) {
   const router = useRouter();
   const [activeTrackId, setActiveTrackId] = useState(tracks[0]?.id ?? null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -113,6 +119,13 @@ export default function TracksClient({ tracks, trackLevels, employees }: TracksC
     }
   }, [activeTrack]);
 
+  useEffect(() => {
+    if (openCreateModalOnMount) {
+      setModalError(null);
+      setModalOpen(true);
+    }
+  }, [openCreateModalOnMount]);
+
   const activeEmployees = activeTrack ? employeesByTrack.get(activeTrack.id) ?? [] : [];
 
   return (
@@ -127,8 +140,11 @@ export default function TracksClient({ tracks, trackLevels, employees }: TracksC
         </PrimaryButton>
       </div>
       {tracks.length === 0 && (
-        <Card className="text-center text-sm text-slate-500">
-          <p>Треков пока нет. Создайте первый, чтобы зафиксировать карьерные уровни.</p>
+        <Card className="text-center">
+          <p className="text-lg font-semibold text-brand-text">Пока нет карьерных треков</p>
+          <p className="mt-2 text-sm text-slate-600">
+            Создайте трек, чтобы описать, чем Junior отличается от Senior.
+          </p>
         </Card>
       )}
       {tracks.length > 0 && (

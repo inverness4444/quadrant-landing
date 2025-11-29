@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Card from "@/components/common/Card";
 import PrimaryButton from "@/components/common/PrimaryButton";
+import SecondaryButton from "@/components/common/SecondaryButton";
 import Tag from "@/components/common/Tag";
 import SkillFormModal from "@/components/app/skills/SkillFormModal";
 import type { Artifact, ArtifactSkill, Employee, EmployeeSkill, Skill } from "@/drizzle/schema";
@@ -47,6 +48,7 @@ type SkillsClientProps = {
     pageSize: number;
     total: number;
   };
+  openCreateModalOnMount?: boolean;
 };
 
 export default function SkillsClient({
@@ -54,6 +56,7 @@ export default function SkillsClient({
   initialEmployeeSkills,
   initialEmployees,
   pagination,
+  openCreateModalOnMount = false,
 }: SkillsClientProps) {
   const router = useRouter();
   const [skillsState, setSkillsState] = useState(initialSkills);
@@ -206,11 +209,13 @@ export default function SkillsClient({
   const selectedStat = filteredStats.find((entry) => entry.skill.id === currentSkill?.id);
   const selectedArtifacts = useMemo(() => {
     if (!currentSkill) return [];
-    const weightMap = new Map(skillArtifactsState.artifactSkills.map((entry) => [entry.artifactId, entry.weight]));
+    const confidenceMap = new Map(
+      skillArtifactsState.artifactSkills.map((entry) => [entry.artifactId, entry.confidence]),
+    );
     return skillArtifactsState.artifacts.map((artifact) => ({
       artifact,
       employee: detailEmployeeMap.get(artifact.employeeId),
-      weight: weightMap.get(artifact.id) ?? null,
+      confidence: confidenceMap.get(artifact.id) ?? null,
     }));
   }, [currentSkill, detailEmployeeMap, skillArtifactsState.artifacts, skillArtifactsState.artifactSkills]);
 
@@ -236,6 +241,14 @@ export default function SkillsClient({
     setModalError(null);
     setModalOpen(true);
   };
+
+  useEffect(() => {
+    if (openCreateModalOnMount) {
+      setModalMode("create");
+      setModalError(null);
+      setModalOpen(true);
+    }
+  }, [openCreateModalOnMount]);
 
   const openEditModal = (skill: Skill) => {
     setModalMode("edit");
@@ -276,8 +289,11 @@ export default function SkillsClient({
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-brand-text">Навыки</h1>
-          <p className="text-sm text-slate-600">База навыков вашей команды</p>
+          <h1 className="text-2xl font-semibold text-brand-text">Навыки и артефакты</h1>
+          <p className="text-sm text-slate-600">
+            Здесь Quadrant показывает навыки, подтверждённые артефактами команды. Видно, где компетенции сильны,
+            а где стоит усилить экспертизу или добавить материалы.
+          </p>
         </div>
         <PrimaryButton onClick={openCreateModal} className="px-4 py-2">
           Добавить навык
@@ -288,7 +304,7 @@ export default function SkillsClient({
           <div className="grid gap-3 md:grid-cols-3">
             <input
               className="h-11 rounded-xl border border-brand-border px-4"
-              placeholder="Поиск..."
+              placeholder="Поиск по названию навыка"
               value={filters.search}
               onChange={(event) => handleSearchChange(event.target.value)}
             />
@@ -298,18 +314,19 @@ export default function SkillsClient({
               onChange={(event) => handleTypeChange(event.target.value)}
             >
               <option value="all">Все типы</option>
-              <option value="hard">Hard</option>
-              <option value="soft">Soft</option>
-              <option value="product">Product</option>
-              <option value="data">Data</option>
+              <option value="hard">Хард</option>
+              <option value="soft">Софт</option>
+              <option value="product">Продуктовые</option>
+              <option value="data">Data/ML</option>
             </select>
           </div>
           <div className="overflow-x-auto">
             {filteredStats.length === 0 && !listLoading ? (
-              <div className="rounded-2xl border border-dashed border-brand-border p-8 text-center">
-                <p className="text-sm text-slate-600">Навыков пока нет. Добавьте первый навык, чтобы построить матрицу компетенций.</p>
+              <div className="rounded-3xl border border-dashed border-white/60 bg-white/80 p-8 text-center">
+                <p className="text-lg font-semibold text-brand-text">Пока нет навыков</p>
+                <p className="mt-2 text-sm text-slate-600">Создайте ключевые навыки вашей команды.</p>
                 <PrimaryButton onClick={openCreateModal} className="mt-4 px-4 py-2">
-                  Добавить навык
+                  Создать навык
                 </PrimaryButton>
               </div>
             ) : (
@@ -317,39 +334,49 @@ export default function SkillsClient({
                 <thead>
                   <tr className="text-xs uppercase tracking-wide text-slate-500">
                     <th className="px-3 py-2">Навык</th>
-                    <th className="px-3 py-2">Тип</th>
                     <th className="px-3 py-2">Сотрудники</th>
                     <th className="px-3 py-2">Средний уровень</th>
+                    <th className="px-3 py-2">Состояние</th>
                     <th className="px-3 py-2 text-right">Действия</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-brand-border">
-                  {filteredStats.map((entry) => (
-                    <tr
-                      key={entry.skill.id}
-                      className={`cursor-pointer transition hover:bg-brand-muted/60 ${
-                        currentSkill?.id === entry.skill.id ? "bg-brand-muted" : ""
-                      }`}
-                      onClick={() => setCurrentSkill(entry.skill)}
-                    >
-                      <td className="px-3 py-3 font-semibold text-brand-text">{entry.skill.name}</td>
-                      <td className="px-3 py-3 text-slate-600">{formatSkillType(entry.skill.type)}</td>
-                      <td className="px-3 py-3">{entry.count}</td>
-                      <td className="px-3 py-3">{entry.average || "—"}</td>
-                      <td className="px-3 py-3 text-right">
-                        <button
-                          type="button"
-                          className="text-xs font-semibold text-brand-link"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openEditModal(entry.skill);
-                          }}
-                        >
-                          Изменить
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {filteredStats.map((entry) => {
+                    const skillState = resolveSkillState(entry);
+                    return (
+                      <tr
+                        key={entry.skill.id}
+                        className={`cursor-pointer transition hover:bg-brand-muted/60 ${
+                          currentSkill?.id === entry.skill.id ? "bg-brand-muted" : ""
+                        }`}
+                        onClick={() => setCurrentSkill(entry.skill)}
+                      >
+                        <td className="px-3 py-3">
+                          <p className="font-semibold text-brand-text">{entry.skill.name}</p>
+                          <p className="text-xs text-slate-500">{formatSkillType(entry.skill.type)}</p>
+                        </td>
+                        <td className="px-3 py-3 text-slate-600">{entry.count || 0} чел.</td>
+                        <td className="px-3 py-3">
+                          {entry.average ? `${entry.average}/5` : "Нет данных"}
+                        </td>
+                        <td className="px-3 py-3">
+                          <SkillStateBadge state={skillState.label} tone={skillState.tone} />
+                        </td>
+                        <td className="px-3 py-3 text-right">
+                          <button
+                            type="button"
+                            className="text-xs font-semibold text-brand-link"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openEditModal(entry.skill);
+                            }}
+                          >
+                            Изменить
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -361,21 +388,19 @@ export default function SkillsClient({
               Показано {filteredStats.length} из {paginationState.total} навыков
             </p>
             <div className="flex items-center gap-2">
-              <PrimaryButton
+              <SecondaryButton
                 type="button"
-                variant="secondary"
                 disabled={paginationState.page === 1 || listLoading}
                 onClick={() => fetchSkills(paginationState.page - 1)}
                 className="px-3 py-1"
               >
                 Назад
-              </PrimaryButton>
+              </SecondaryButton>
               <span>
                 Страница {paginationState.page} / {Math.max(1, Math.ceil(paginationState.total / paginationState.pageSize))}
               </span>
-              <PrimaryButton
+              <SecondaryButton
                 type="button"
-                variant="secondary"
                 disabled={
                   paginationState.page >= Math.ceil(paginationState.total / paginationState.pageSize) || listLoading
                 }
@@ -383,7 +408,7 @@ export default function SkillsClient({
                 className="px-3 py-1"
               >
                 Вперёд
-              </PrimaryButton>
+              </SecondaryButton>
             </div>
           </div>
         </Card>
@@ -448,8 +473,10 @@ export default function SkillsClient({
                         <p className="text-xs text-slate-500">
                           {entry.artifact.type} · {entry.employee?.name ?? "Сотрудник неизвестен"}
                         </p>
-                        {typeof entry.weight === "number" && (
-                          <p className="text-xs text-slate-500">Вес: {entry.weight}</p>
+                        {typeof entry.confidence === "number" && (
+                          <p className="text-xs text-slate-500">
+                            Вклад: {Math.round(entry.confidence * 100)}%
+                          </p>
                         )}
                         <p className="mt-1 text-xs text-slate-500">{entry.artifact.description}</p>
                       </div>
@@ -511,14 +538,43 @@ export default function SkillsClient({
 function formatSkillType(type: Skill["type"]) {
   switch (type) {
     case "hard":
-      return "Hard";
+      return "Хард";
     case "soft":
-      return "Soft";
+      return "Софт";
     case "product":
-      return "Product";
+      return "Продуктовые";
     case "data":
-      return "Data";
+      return "Data/ML";
     default:
-      return type;
+      return "Другое";
   }
+}
+
+type SkillStateTone = "ok" | "risk" | "growth" | "muted";
+
+function resolveSkillState(stat: SkillStat): { label: string; tone: SkillStateTone } {
+  if (!stat.count) {
+    return { label: "Нет данных", tone: "muted" };
+  }
+  if (stat.average < 3) {
+    return { label: "Риск", tone: "risk" };
+  }
+  if (stat.average < 4) {
+    return { label: "Точка роста", tone: "growth" };
+  }
+  return { label: "OK", tone: "ok" };
+}
+
+function SkillStateBadge({ state, tone }: { state: string; tone: SkillStateTone }) {
+  const toneClasses: Record<SkillStateTone, string> = {
+    ok: "bg-emerald-50 text-emerald-700",
+    risk: "bg-red-50 text-red-600",
+    growth: "bg-amber-50 text-amber-600",
+    muted: "bg-slate-100 text-slate-500",
+  };
+  return (
+    <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${toneClasses[tone]}`}>
+      {state}
+    </span>
+  );
 }

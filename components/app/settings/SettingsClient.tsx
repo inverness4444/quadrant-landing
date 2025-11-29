@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import Card from "@/components/common/Card";
 import PrimaryButton from "@/components/common/PrimaryButton";
+import SecondaryButton from "@/components/common/SecondaryButton";
 import type { Workspace, User, Member, MemberRole, Invite } from "@/drizzle/schema";
 import { AVAILABLE_INTEGRATIONS, type IntegrationStatus, type IntegrationType } from "@/integrations/types";
 import { buildCsrfHeader } from "@/lib/csrf";
 
-type SettingsTab = "company" | "profile" | "participants" | "integrations" | "billing";
+export type SettingsTab = "general" | "security" | "integrations" | "billing";
 
 type MemberListItem = {
   userId: string;
@@ -85,6 +86,7 @@ type SettingsClientProps = {
   workspace: Workspace;
   user: User;
   member: Member;
+  initialTab?: SettingsTab;
 };
 
 const sizeOptions = [
@@ -100,11 +102,11 @@ const inviteStatusLabels: Record<ParticipantInvite["status"], string> = {
   expired: "отменено",
 };
 
-export default function SettingsClient({ workspace, user, member }: SettingsClientProps) {
+export default function SettingsClient({ workspace, user, member, initialTab = "general" }: SettingsClientProps) {
   const canManageParticipants = member.role !== "member";
   const canManageIntegrations = member.role !== "member";
   const canManageBilling = member.role !== "member";
-  const [activeTab, setActiveTab] = useState<SettingsTab>("company");
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [companyForm, setCompanyForm] = useState({
     name: workspace.name,
     size: workspace.size ?? "20-100",
@@ -161,19 +163,25 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
     }
   };
 
-  const tabs: Array<{ id: SettingsTab; label: string }> = [
-    { id: "company", label: "Компания" },
-    { id: "profile", label: "Профиль" },
-  ];
-  if (canManageParticipants) {
-    tabs.push({ id: "participants", label: "Участники" });
-  }
-  if (canManageIntegrations) {
-    tabs.push({ id: "integrations", label: "Интеграции" });
-  }
-  if (canManageBilling) {
-    tabs.push({ id: "billing", label: "Тариф и биллинг" });
-  }
+  const tabs = useMemo(() => {
+    const list: Array<{ id: SettingsTab; label: string }> = [{ id: "general", label: "Общие" }];
+    if (canManageParticipants) {
+      list.push({ id: "security", label: "Безопасность" });
+    }
+    if (canManageIntegrations) {
+      list.push({ id: "integrations", label: "Интеграции" });
+    }
+    if (canManageBilling) {
+      list.push({ id: "billing", label: "Тариф и биллинг" });
+    }
+    return list;
+  }, [canManageBilling, canManageIntegrations, canManageParticipants]);
+
+  useEffect(() => {
+    if (!tabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab(tabs[0]?.id ?? "general");
+    }
+  }, [activeTab, tabs]);
 
   const fetchMembers = useCallback(async () => {
     setMembersLoading(true);
@@ -468,8 +476,8 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
       <Card>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-brand-text">Участники</p>
-            <p className="text-xs text-slate-500">Управление доступом к workspace</p>
+            <p className="text-sm font-semibold text-brand-text">Команда и доступ</p>
+            <p className="text-xs text-slate-500">Кто может видеть данные рабочей области</p>
           </div>
           <p className="text-xs uppercase text-slate-400">{membersList.length} участников</p>
         </div>
@@ -607,6 +615,12 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
           </div>
         </form>
       </Card>
+      <Card className="border border-dashed border-brand-border bg-brand-muted/40">
+        <p className="text-sm font-semibold text-brand-text">Скоро: расширенные политики</p>
+        <p className="text-sm text-slate-600">
+          SSO, SCIM и автоматическое управление доступом сейчас в разработке. Сообщите нам, если вам нужны приоритетные интеграции.
+        </p>
+      </Card>
     </div>
   );
 
@@ -670,15 +684,14 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
                     )}
                     {data && data.status === "connected" && (
                       <>
-                        <PrimaryButton
+                        <SecondaryButton
                           type="button"
-                          variant="secondary"
                           className="px-4 py-2"
                           onClick={() => handleDisconnectIntegration(descriptor.type)}
                           disabled={isIntegrationActionPending(descriptor.type, "disconnect")}
                         >
                           {isIntegrationActionPending(descriptor.type, "disconnect") ? "Отключаем..." : "Отключить"}
-                        </PrimaryButton>
+                        </SecondaryButton>
                         <PrimaryButton
                           type="button"
                           className="px-4 py-2"
@@ -748,7 +761,8 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
           )}
         </Card>
         <Card>
-          <p className="text-sm font-semibold text-brand-text">Billing email</p>
+          <p className="text-sm font-semibold text-brand-text">Email для счетов</p>
+          <p className="text-xs text-slate-500">Quadrant будет отправлять счета и напоминания на этот адрес.</p>
           <form className="mt-3 flex flex-col gap-3 sm:flex-row" onSubmit={handleBillingSubmit}>
             <input
               className="h-11 flex-1 rounded-xl border border-brand-border px-4"
@@ -791,89 +805,89 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
     );
   };
   const renderTabContent = () => {
-    if (activeTab === "company") {
+    if (activeTab === "general") {
       return (
-        <Card>
-          <form className="space-y-4" onSubmit={handleCompanySubmit}>
-            <div>
-              <p className="text-sm font-semibold text-brand-text">Компания</p>
-              <p className="text-xs text-slate-500">Название и размер workspace</p>
-            </div>
-            <label className="text-sm text-slate-600">
-              Название
-              <input
-                className="mt-1 h-11 w-full rounded-xl border border-brand-border px-4"
-                value={companyForm.name}
-                onChange={(event) =>
-                  setCompanyForm((prev) => ({ ...prev, name: event.target.value }))
-                }
-                required
-              />
-            </label>
-            <label className="text-sm text-slate-600">
-              Размер компании
-              <select
-                className="mt-1 h-11 w-full rounded-xl border border-brand-border px-4"
-                value={companyForm.size}
-                onChange={(event) =>
-                  setCompanyForm((prev) => ({ ...prev, size: event.target.value }))
-                }
-              >
-                {sizeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="flex items-center gap-3">
-              <PrimaryButton type="submit" disabled={companyPending} className="px-4 py-2">
-                {companyPending ? "Сохраняем..." : "Сохранить"}
-              </PrimaryButton>
-              {companyMessage && <span className="text-sm text-slate-500">{companyMessage}</span>}
-            </div>
-          </form>
-        </Card>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <form className="space-y-4" onSubmit={handleCompanySubmit}>
+              <div>
+                <p className="text-sm font-semibold text-brand-text">Рабочая область</p>
+                <p className="text-xs text-slate-500">
+                  Название компании, чтобы участники понимали, куда попали.
+                </p>
+              </div>
+              <label className="text-sm text-slate-600">
+                Название
+                <input
+                  className="mt-1 h-11 w-full rounded-xl border border-brand-border px-4"
+                  value={companyForm.name}
+                  onChange={(event) =>
+                    setCompanyForm((prev) => ({ ...prev, name: event.target.value }))
+                  }
+                  required
+                />
+              </label>
+              <label className="text-sm text-slate-600">
+                Размер компании
+                <select
+                  className="mt-1 h-11 w-full rounded-xl border border-brand-border px-4"
+                  value={companyForm.size}
+                  onChange={(event) =>
+                    setCompanyForm((prev) => ({ ...prev, size: event.target.value }))
+                  }
+                >
+                  {sizeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="flex items-center gap-3">
+                <PrimaryButton type="submit" disabled={companyPending} className="px-4 py-2">
+                  {companyPending ? "Сохраняем..." : "Сохранить"}
+                </PrimaryButton>
+                {companyMessage && <span className="text-sm text-slate-500">{companyMessage}</span>}
+              </div>
+            </form>
+          </Card>
+          <Card>
+            <form className="space-y-4" onSubmit={handleProfileSubmit}>
+              <div>
+                <p className="text-sm font-semibold text-brand-text">Профиль администратора</p>
+                <p className="text-xs text-slate-500">Эти данные видят участники в приглашениях и письмах.</p>
+              </div>
+              <label className="text-sm text-slate-600">
+                Имя
+                <input
+                  className="mt-1 h-11 w-full rounded-xl border border-brand-border px-4"
+                  value={profileForm.name}
+                  onChange={(event) =>
+                    setProfileForm((prev) => ({ ...prev, name: event.target.value }))
+                  }
+                  required
+                />
+              </label>
+              <label className="text-sm text-slate-600">
+                Email
+                <input
+                  className="mt-1 h-11 w-full rounded-xl border border-brand-border bg-brand-muted/60 px-4"
+                  value={profileForm.email}
+                  disabled
+                />
+              </label>
+              <div className="flex items-center gap-3">
+                <PrimaryButton type="submit" disabled={profilePending} className="px-4 py-2">
+                  {profilePending ? "Сохраняем..." : "Сохранить"}
+                </PrimaryButton>
+                {profileMessage && <span className="text-sm text-slate-500">{profileMessage}</span>}
+              </div>
+            </form>
+          </Card>
+        </div>
       );
     }
-    if (activeTab === "profile") {
-      return (
-        <Card>
-          <form className="space-y-4" onSubmit={handleProfileSubmit}>
-            <div>
-              <p className="text-sm font-semibold text-brand-text">Профиль</p>
-              <p className="text-xs text-slate-500">Данные владельца workspace</p>
-            </div>
-            <label className="text-sm text-slate-600">
-              Имя
-              <input
-                className="mt-1 h-11 w-full rounded-xl border border-brand-border px-4"
-                value={profileForm.name}
-                onChange={(event) =>
-                  setProfileForm((prev) => ({ ...prev, name: event.target.value }))
-                }
-                required
-              />
-            </label>
-            <label className="text-sm text-slate-600">
-              Email
-              <input
-                className="mt-1 h-11 w-full rounded-xl border border-brand-border bg-brand-muted/60 px-4"
-                value={profileForm.email}
-                disabled
-              />
-            </label>
-            <div className="flex items-center gap-3">
-              <PrimaryButton type="submit" disabled={profilePending} className="px-4 py-2">
-                {profilePending ? "Сохраняем..." : "Сохранить"}
-              </PrimaryButton>
-              {profileMessage && <span className="text-sm text-slate-500">{profileMessage}</span>}
-            </div>
-          </form>
-        </Card>
-      );
-    }
-    if (activeTab === "participants") {
+    if (activeTab === "security") {
       return renderParticipants();
     }
     if (activeTab === "integrations") {
@@ -888,8 +902,10 @@ export default function SettingsClient({ workspace, user, member }: SettingsClie
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-brand-text">Настройки</h1>
-        <p className="text-sm text-slate-600">Обновите данные компании и профиля</p>
+        <h1 className="text-2xl font-semibold text-brand-text">Настройки рабочей области</h1>
+        <p className="text-sm text-slate-600">
+          Управляйте общими данными, доступом команды, интеграциями и биллингом — всё в одном месте.
+        </p>
       </div>
       <div className="space-y-3">
         <div className="flex flex-wrap gap-2 border-b border-brand-border pb-4">

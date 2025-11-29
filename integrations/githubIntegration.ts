@@ -2,24 +2,38 @@ import { listEmployees } from "@/repositories/employeeRepository";
 import { listSkills } from "@/repositories/skillRepository";
 import type { DemoArtifactPayload, IntegrationClient } from "@/integrations/baseIntegration";
 
-function pickRandom<T>(items: T[]) {
-  return items[Math.floor(Math.random() * items.length)];
+const samplePullRequests = [
+  { title: "PR: Refactor billing service", summary: "Обновление пайплайна расчёта выручки" },
+  { title: "PR: Improve onboarding flow", summary: "Оптимизация фичи приглашений" },
+  { title: "PR: Analytics dashboards", summary: "Добавление графиков в административную панель" },
+  { title: "PR: Observability rollout", summary: "Добавление метрик и алёртов" },
+  { title: "PR: Feature flags SDK", summary: "Общий клиент для feature flag платформы" },
+  { title: "PR: Partner API v2", summary: "Новый контракт API для партнёров" },
+];
+
+function buildAssignees(employees: Awaited<ReturnType<typeof listEmployees>>, index: number) {
+  if (employees.length === 0) return [];
+  const author = employees[index % employees.length];
+  const reviewer = employees[(index + 1) % employees.length];
+  const reviewerTwo = employees[(index + 3) % employees.length];
+  const assignees = [{ employeeId: author.id, role: "author" as const }];
+  if (reviewer && reviewer.id !== author.id) {
+    assignees.push({ employeeId: reviewer.id, role: "reviewer" as const });
+  }
+  if (reviewerTwo && reviewerTwo.id !== author.id && reviewerTwo.id !== reviewer.id) {
+    assignees.push({ employeeId: reviewerTwo.id, role: "reviewer" as const });
+  }
+  return assignees;
 }
 
 function pickSkills(skillIds: string[], count: number) {
+  if (skillIds.length === 0) return [];
   const shuffled = [...skillIds].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, Math.max(1, count)).map((id, index) => ({
+  return shuffled.slice(0, Math.max(1, count)).map((id, idx) => ({
     skillId: id,
-    weight: Math.max(1, 5 - index),
+    confidence: Math.max(0.4, 1 - idx * 0.2),
   }));
 }
-
-const sampleTitles = [
-  { title: "PR: Refactor billing service", description: "Обновление пайплайна расчёта выручки" },
-  { title: "PR: Improve onboarding flow", description: "Оптимизация фичи приглашений" },
-  { title: "PR: Analytics dashboards", description: "Добавление графиков в административную панель" },
-  { title: "Code Review: Observability setup", description: "Ревью интеграции с мониторингом" },
-];
 
 export class GithubIntegrationClient implements IntegrationClient {
   readonly type = "github";
@@ -31,26 +45,19 @@ export class GithubIntegrationClient implements IntegrationClient {
     }
     const skillIds = skills.map((skill) => skill.id);
     const artifacts: DemoArtifactPayload[] = [];
-    for (let i = 0; i < Math.min(4, employees.length); i += 1) {
-      const employee = employees[i];
-      const sample = sampleTitles[i % sampleTitles.length];
+    const prCount = Math.min(6, Math.max(3, employees.length));
+    for (let i = 0; i < prCount; i += 1) {
+      const sample = samplePullRequests[i % samplePullRequests.length];
+      const createdAt = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString();
       artifacts.push({
-        employeeId: employee.id,
-        type: "code",
+        externalId: `PR-${120 + i}`,
+        type: "pull_request",
         title: sample.title,
-        description: sample.description,
-        link: `https://github.com/example/repo/pull/${100 + i}`,
-        skills: pickSkills(skillIds, 2),
-      });
-    }
-    if (artifacts.length === 0) {
-      const employee = pickRandom(employees);
-      artifacts.push({
-        employeeId: employee.id,
-        type: "code",
-        title: sampleTitles[0].title,
-        description: sampleTitles[0].description,
-        link: "https://github.com/example/repo/pull/101",
+        summary: sample.summary,
+        url: `https://github.com/example/quadrant/pull/${120 + i}`,
+        createdAt,
+        updatedAt: createdAt,
+        assignees: buildAssignees(employees, i),
         skills: pickSkills(skillIds, 2),
       });
     }

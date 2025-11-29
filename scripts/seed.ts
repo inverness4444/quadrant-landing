@@ -6,10 +6,13 @@ import { plans } from "../drizzle/schema";
 import { findUserByEmail, createUser } from "../repositories/userRepository";
 import { createWorkspace, updateWorkspace } from "../repositories/workspaceRepository";
 import { createMember } from "../repositories/memberRepository";
-import { createIntegration } from "../repositories/integrationRepository";
+import { createIntegration, findIntegrationByWorkspaceAndType } from "../repositories/integrationRepository";
 import { findPlanByCode, findDefaultPlan } from "../repositories/planRepository";
 import { seedWorkspaceDemoData } from "../services/workspaceSeed";
 import { runIntegrationSync } from "../services/integrationSyncService";
+import { seedProgramTemplates } from "../services/programSeed";
+import { recomputeOnboardingState } from "../services/onboardingService";
+import { invites } from "../drizzle/schema";
 import { env } from "../config/env";
 
 const planDefinitions = [
@@ -47,6 +50,7 @@ const planDefinitions = [
 
 async function runSeed() {
   await seedPlans();
+  await seedProgramTemplates();
   const demoEmail = env.demo.email ?? "demo@quadrant.app";
   const demoPassword = env.demo.password ?? "demo12345";
   const existing = await findUserByEmail(demoEmail);
@@ -80,6 +84,8 @@ async function runSeed() {
   });
   await seedWorkspaceDemoData(workspace.id);
   await seedDemoIntegrations(workspace.id);
+  await seedDemoInvite(workspace.id);
+  await recomputeOnboardingState(workspace.id);
   console.log(`Seed completed. Demo credentials: ${demoEmail} / ${demoPassword}`);
   process.exit(0);
 }
@@ -115,14 +121,63 @@ async function seedPlans() {
 }
 
 async function seedDemoIntegrations(workspaceId: string) {
-  const github = await createIntegration({ workspaceId, type: "github", status: "connected" });
+  const github =
+    (await findIntegrationByWorkspaceAndType(workspaceId, "github")) ??
+    (await createIntegration({
+      workspaceId,
+      type: "github",
+      name: "GitHub — core backend",
+      config: { repo: "quadrant/backend" },
+      status: "connected",
+    }));
   if (github) {
     await runIntegrationSync(github);
   }
-  const jira = await createIntegration({ workspaceId, type: "jira", status: "connected" });
+  const jira =
+    (await findIntegrationByWorkspaceAndType(workspaceId, "jira")) ??
+    (await createIntegration({
+      workspaceId,
+      type: "jira",
+      name: "Jira — Team Quadrant",
+      config: { project: "QDR" },
+      status: "connected",
+    }));
   if (jira) {
     await runIntegrationSync(jira);
   }
+  const notion =
+    (await findIntegrationByWorkspaceAndType(workspaceId, "notion")) ??
+    (await createIntegration({
+      workspaceId,
+      type: "notion",
+      name: "Notion — Product Wiki",
+      config: { workspace: "Quadrant docs" },
+      status: "connected",
+    }));
+  if (notion) {
+    await runIntegrationSync(notion);
+  }
+}
+
+async function seedDemoInvite(workspaceId: string) {
+  const existingInvite = await db.query.invites.findFirst({
+    where: eq(invites.workspaceId, workspaceId),
+  });
+  if (existingInvite) return;
+  await db
+    .insert(invites)
+    .values({
+      id: randomUUID(),
+      workspaceId,
+      email: "teammate-demo@quadrant.app",
+      role: "member",
+      token: randomUUID(),
+      status: "pending",
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+    .run();
 }
 
 runSeed().catch((error) => {

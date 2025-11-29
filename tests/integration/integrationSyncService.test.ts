@@ -48,21 +48,22 @@ describe("integration sync service", () => {
     const { workspaceId, employeeId, skillId } = await setupWorkspace();
     const payloads: DemoArtifactPayload[] = [
       {
-        employeeId,
-        type: "code",
+        externalId: "PR-2",
+        type: "pull_request",
         title: "PR: Demo",
-        description: "Добавление новой фичи",
-        link: "https://github.com/example/pr/1",
-        skills: [{ skillId, weight: 3 }],
+        summary: "Добавление новой фичи",
+        url: "https://github.com/example/pr/1",
+        assignees: [{ employeeId, role: "author" }],
+        skills: [{ skillId, confidence: 0.9 }],
       },
     ];
-    const created = await createArtifactsFromPayloads(workspaceId, payloads);
+    const created = await createArtifactsFromPayloads(workspaceId, null, payloads);
     expect(created).toBe(1);
     const list = await listArtifactsByWorkspace(workspaceId);
     expect(list).toHaveLength(1);
     const skillLinks = await listArtifactSkillsByWorkspace(workspaceId);
     expect(skillLinks).toHaveLength(1);
-    expect(skillLinks[0]?.weight).toBe(3);
+    expect(skillLinks[0]?.confidence).toBeGreaterThan(0);
   });
 
   it("runs registered integration client and updates last sync timestamp", async () => {
@@ -70,7 +71,9 @@ describe("integration sync service", () => {
     const integration = await createIntegration({
       workspaceId,
       type: "github",
+      name: "GitHub — tests",
       status: "connected",
+      config: {},
     });
     expect(integration).not.toBeNull();
     const before = await listArtifactsByWorkspace(workspaceId);

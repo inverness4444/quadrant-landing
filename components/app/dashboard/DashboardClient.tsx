@@ -1,328 +1,230 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Card from "@/components/common/Card";
-import MetricCard from "@/components/app/MetricCard";
 import PrimaryButton from "@/components/common/PrimaryButton";
-import type {
-  EmployeeRiskEntry,
-  SkillAggregate,
-  WorkspaceOverview,
-} from "@/services/analyticsService";
-
-type DashboardPayload = {
-  ok: boolean;
-  overview: WorkspaceOverview;
-  topSkills: SkillAggregate[];
-  weakSkills: SkillAggregate[];
-  riskEmployees: EmployeeRiskEntry[];
-};
-
-type DashboardResponse = Omit<DashboardPayload, "ok">;
+import SecondaryButton from "@/components/common/SecondaryButton";
+import type { DashboardActionItem, DashboardData } from "@/services/types/dashboard";
 
 type DashboardClientProps = {
   workspaceName: string;
-  canManageBilling: boolean;
 };
 
-export default function DashboardClient({ workspaceName, canManageBilling }: DashboardClientProps) {
-  const [data, setData] = useState<DashboardResponse | null>(null);
+export default function DashboardClient({ workspaceName }: DashboardClientProps) {
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let mounted = true;
-    async function fetchDashboard() {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await fetch("/api/app/dashboard", { cache: "no-store" });
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null);
-          throw new Error(payload?.error?.message ?? "Не удалось загрузить данные");
-        }
-        const payload = (await response.json()) as DashboardPayload;
-        if (mounted) {
-          setData({
-            overview: payload.overview,
-            topSkills: payload.topSkills,
-            weakSkills: payload.weakSkills,
-            riskEmployees: payload.riskEmployees,
-          });
-        }
-      } catch (err) {
-        if (mounted) {
-          setError(err instanceof Error ? err.message : "Неизвестная ошибка");
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    }
-    fetchDashboard();
-    return () => {
-      mounted = false;
-    };
+    void load();
   }, []);
 
-  const overviewCards = useMemo(() => {
-    if (!data) return [];
-    return [
-      { label: "Сотрудники", value: data.overview.employeesCount },
-      { label: "Навыки", value: data.overview.skillsCount },
-      { label: "Треки", value: data.overview.tracksCount },
-      { label: "Интеграции", value: data.overview.integrationsCount },
-    ];
-  }, [data]);
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/app/dashboard", { cache: "no-store" });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error?.message ?? "Не удалось загрузить дашборд");
+      }
+      setData(payload.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Неизвестная ошибка");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const summaryCards = [
+    { label: "Активные пилоты", value: data?.summary.activePilots ?? 0 },
+    { label: "Пилоты в риске", value: data?.summary.pilotsAtRisk ?? 0 },
+    { label: "Команды", value: data?.summary.totalTeams ?? 0 },
+    { label: "Сотрудники", value: data?.summary.totalEmployees ?? 0 },
+    { label: "Встречи (7 дней)", value: data?.summary.upcomingMeetingsCount ?? 0 },
+    { label: "Старые отчёты", value: data?.summary.staleReportsCount ?? 0 },
+    { label: "Непрочитанные уведомления", value: data?.summary.unreadNotificationsCount ?? 0 },
+    { label: "Открытые решения", value: data?.summary.openDecisionsCount ?? 0 },
+  ];
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-3 border-b border-brand-border pb-6 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">Workspace</p>
-          <h1 className="text-3xl font-semibold text-brand-text">{workspaceName}</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            Ключевые метрики команды: рост навыков, рисковые зоны и выполнение планов развития.
-          </p>
+          <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Дашборд</p>
+          <h1 className="text-3xl font-semibold text-brand-text">Workspace «{workspaceName}»</h1>
+          <p className="text-sm text-slate-600">Ключевые пилоты, встречи и действия на этой неделе.</p>
         </div>
-        {canManageBilling && (
-          <PrimaryButton href="/app/settings?tab=billing">Перейти к тарифам</PrimaryButton>
-        )}
+        <div className="flex gap-2">
+          <SecondaryButton onClick={() => void load()} className="px-4 py-2" disabled={loading}>
+            Обновить
+          </SecondaryButton>
+        </div>
       </div>
 
-      {error && (
-        <Card className="border-red-200 bg-red-50 text-sm text-red-800">
-          Не удалось загрузить дашборд: {error}. Попробуйте перезагрузить страницу.
-        </Card>
-      )}
+      {error && <Card className="border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</Card>}
 
-      <section data-testid="dashboard-overview">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold text-brand-text">Обзор компании</h2>
-            <p className="text-sm text-slate-500">Распределение ресурсов на уровне workspace.</p>
-          </div>
+      <div className="grid gap-4 md:grid-cols-3">
+        {summaryCards.map((card) => (
+          <Card key={card.label} className="p-4">
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{card.label}</p>
+            <p className="text-2xl font-semibold text-brand-text">{loading ? "…" : card.value}</p>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="flex flex-col items-start justify-between gap-3 md:flex-row md:items-center">
+        <div>
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Решения по людям</p>
+          <h2 className="text-xl font-semibold text-brand-text">Открытых решений: {loading ? "…" : data?.summary.openDecisionsCount ?? 0}</h2>
+          <p className="text-sm text-slate-500">Повышения, переводы, мониторинг рисков удержания.</p>
         </div>
-        {loading && !data ? (
-          <OverviewSkeleton />
-        ) : data ? (
-          <>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {overviewCards.map((metric) => (
-                <MetricCard key={metric.label} label={metric.label} value={metric.value} />
-              ))}
-            </div>
-            <Card className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              {data.overview.plan ? (
-                <>
+        <PrimaryButton href="/app/decisions" className="px-4 py-2">
+          Открыть борд решений
+        </PrimaryButton>
+      </Card>
+
+      <Card className="flex flex-col items-start justify-between gap-3 md:flex-row md:items-center">
+        <div>
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Навыки и разрывы</p>
+          <h2 className="text-xl font-semibold text-brand-text">Skills & Gaps Explorer</h2>
+          <p className="text-sm text-slate-500">Матрица навыков, разрывы к ролям, быстрые решения.</p>
+        </div>
+        <PrimaryButton href="/app/skills/map" className="px-4 py-2">
+          Открыть обзор
+        </PrimaryButton>
+      </Card>
+
+      <Card className="flex flex-col items-start justify-between gap-3 md:flex-row md:items-center">
+        <div>
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Quarterly report</p>
+          <h2 className="text-xl font-semibold text-brand-text">Люди и навыки за квартал</h2>
+          <p className="text-sm text-slate-500">Краткий обзор прогресса: пилоты, решения, риски.</p>
+        </div>
+        <PrimaryButton href="/app/reports/quarterly" className="px-4 py-2">
+          Открыть отчёт
+        </PrimaryButton>
+      </Card>
+
+      <Card className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Пилоты</p>
+            <h2 className="text-xl font-semibold text-brand-text">Пилоты в зоне риска</h2>
+            <p className="text-sm text-slate-500">Просроченные шаги и владельцы.</p>
+          </div>
+          <SecondaryButton href="/app/pilot" className="px-3 py-1 text-xs">
+            Все пилоты
+          </SecondaryButton>
+        </div>
+        {data?.pilotsAtRisk?.length ? (
+          <div className="space-y-2">
+            {data.pilotsAtRisk.map((pilot) => (
+              <div key={pilot.pilotRunId} className="rounded-2xl border border-white/60 bg-white/90 p-3 text-sm text-slate-700">
+                <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm text-slate-500">Тариф</p>
-                    <p className="text-lg font-semibold text-brand-text">{data.overview.plan.name}</p>
-                    <p className="text-sm text-slate-500">
-                      Сотрудники: {data.overview.plan.currentEmployeesCount}
-                      {renderLimit(data.overview.plan.maxEmployees)} • Интеграции:{" "}
-                      {data.overview.plan.currentIntegrationsCount}
-                      {renderLimit(data.overview.plan.maxIntegrations)}
+                    <p className="font-semibold text-brand-text">{pilot.name}</p>
+                    <p className="text-xs text-slate-500">
+                      {pilot.teamName ?? "Команда не указана"} · Владелец: {pilot.ownerName ?? "не указан"}
                     </p>
                   </div>
-                  {canManageBilling && (
-                    <PrimaryButton href="/app/settings?tab=billing" variant="secondary">
-                      Открыть «Тариф и биллинг»
+                  <div className="text-right text-xs text-amber-700">
+                    <p>Просрочено шагов: {pilot.overdueSteps}</p>
+                    <PrimaryButton href={`/app/pilot/${pilot.pilotRunId}`} className="mt-2 px-3 py-1 text-xs">
+                      Открыть
                     </PrimaryButton>
-                  )}
-                </>
-              ) : (
-                <p className="text-sm text-slate-600">
-                  Похоже, план ещё не выбран. Обратитесь к администратору, чтобы подключить тариф.
-                </p>
-              )}
-            </Card>
-          </>
-        ) : (
-          <EmptyDashboardNotice />
-        )}
-      </section>
-
-      <section data-testid="top-skills">
-          <SectionHeading
-            title="Сильные навыки"
-            description="Навыки, где команда чувствует себя увереннее всего."
-          />
-        {loading && !data ? (
-          <ListSkeleton />
-        ) : data && data.topSkills.length > 0 ? (
-          <SkillList items={data.topSkills} emptyLabel="Навыки появятся после добавления сотрудников" />
-        ) : (
-          <EmptyState message="Пока недостаточно данных. Добавьте сотрудников и их навыки." />
-        )}
-      </section>
-
-      <section data-testid="weak-skills">
-          <SectionHeading
-            title="Навыки группы риска"
-            description="Компетенции, где средний уровень ниже целевого."
-          />
-        {loading && !data ? (
-          <ListSkeleton />
-        ) : data && data.weakSkills.length > 0 ? (
-          <SkillList items={data.weakSkills} highlightWeak />
-        ) : (
-          <EmptyState message="Нет навыков в зоне риска — отличная работа команды!" />
-        )}
-      </section>
-
-      <section data-testid="dashboard-risk-employees">
-        <SectionHeading
-          title="Сотрудники с рисками развития"
-          description="Коллеги, которым нужна поддержка: мало навыков, низкие оценки или разрыв по треку."
-        />
-        {loading && !data ? (
-          <ListSkeleton rows={3} />
-        ) : data && data.riskEmployees.length > 0 ? (
-          <div className="grid gap-4">
-            {data.riskEmployees.map((employee) => (
-              <Card key={employee.employeeId} className="flex flex-col gap-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-lg font-semibold text-brand-text">{employee.name}</p>
-                    <p className="text-sm text-slate-500">{employee.position}</p>
                   </div>
-                  <a
-                    href={`/app/team/${employee.employeeId}`}
-                    className="text-sm font-semibold text-brand-primary hover:underline"
-                  >
-                    Открыть профиль →
-                  </a>
                 </div>
-                <div className="text-sm text-slate-500">
-                  {employee.trackName ? `${employee.trackName}` : "Трек не назначен"}
-                  {employee.trackLevelName ? ` • уровень ${employee.trackLevelName}` : ""}
-                </div>
-                <div className="space-y-2">
-                  {employee.problems.map((problem, index) => (
-                    <div
-                      key={`${problem.skillId ?? "generic"}-${index}`}
-                      className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-semibold">{problem.skillName}</span>
-                        <span>
-                          {formatLevel(problem.currentLevel)} / {formatLevel(problem.targetLevel)}
-                        </span>
-                      </div>
-                      {problem.note && <p className="mt-1 text-xs text-amber-900">{problem.note}</p>}
-                    </div>
-                  ))}
-                </div>
-              </Card>
+              </div>
             ))}
           </div>
         ) : (
-          <EmptyState message="Пока никто не находится в зоне риска. Продолжайте отслеживать прогресс команды." />
+          <p className="text-sm text-slate-500">Сейчас нет пилотов в зоне риска.</p>
         )}
-      </section>
-    </div>
-  );
-}
+      </Card>
 
-function SectionHeading({ title, description }: { title: string; description: string }) {
-  return (
-    <div className="mb-3">
-      <h2 className="text-xl font-semibold text-brand-text">{title}</h2>
-      <p className="text-sm text-slate-500">{description}</p>
-    </div>
-  );
-}
-
-function SkillList({
-  items,
-  highlightWeak = false,
-}: {
-  items: SkillAggregate[];
-  highlightWeak?: boolean;
-}) {
-  return (
-    <Card className="divide-y divide-brand-border p-0">
-      {items.map((item) => (
-        <div key={item.skillId} className="flex flex-col gap-2 px-6 py-4 md:flex-row md:items-center md:justify-between">
+      <Card className="space-y-3">
+        <div className="flex items-center justify-between">
           <div>
-            <p className="text-base font-semibold text-brand-text">{item.name}</p>
-            <p className="text-sm text-slate-500">
-              {item.employeesWithSkillCount} чел. • средний уровень{" "}
-              <span className={highlightWeak ? "text-red-600" : "text-emerald-600"}>
-                {formatAverage(item.averageLevel)}/5
-              </span>
-            </p>
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Встречи</p>
+            <h2 className="text-xl font-semibold text-brand-text">Ближайшие встречи</h2>
           </div>
-          <span className="text-sm font-semibold text-slate-600">{formatAverage(item.averageLevel)}/5</span>
+          <SecondaryButton href="/app/meetings" className="px-3 py-1 text-xs">
+            Все встречи
+          </SecondaryButton>
         </div>
-      ))}
-    </Card>
-  );
-}
+        {data?.upcomingMeetings?.length ? (
+          <div className="space-y-2">
+            {data.upcomingMeetings.map((meeting) => (
+              <div key={meeting.agendaId} className="rounded-2xl border border-white/60 bg-white/90 p-3 text-sm text-slate-700">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-brand-text">{meeting.title}</p>
+                    <p className="text-xs text-slate-500">
+                      {meeting.scheduledAt instanceof Date ? meeting.scheduledAt.toLocaleString("ru-RU") : new Date(meeting.scheduledAt).toLocaleString("ru-RU")} · Владелец:{" "}
+                      {meeting.ownerName ?? "не указан"}
+                    </p>
+                    {meeting.relatedPilotName && <p className="text-xs text-slate-500">Пилот: {meeting.relatedPilotName}</p>}
+                  </div>
+                  <PrimaryButton href={`/app/meetings/${meeting.agendaId}`} className="px-3 py-1 text-xs">
+                    Открыть повестку
+                  </PrimaryButton>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">На ближайшую неделю встречи не запланированы.</p>
+        )}
+      </Card>
 
-function EmptyState({ message }: { message: string }) {
-  return (
-    <Card className="bg-slate-50 text-sm text-slate-600">
-      {message}
-    </Card>
-  );
-}
-
-function OverviewSkeleton() {
-  return (
-    <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {Array.from({ length: 4 }).map((_, index) => (
-        <Card key={index} className="animate-pulse space-y-4">
-          <div className="h-4 w-24 rounded bg-slate-200" />
-          <div className="h-8 w-32 rounded bg-slate-200" />
-          <div className="h-3 w-20 rounded bg-slate-200" />
-        </Card>
-      ))}
+      <Card className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Действия</p>
+            <h2 className="text-xl font-semibold text-brand-text">Важные действия</h2>
+            <p className="text-sm text-slate-500">Просроченные шаги, встречи, отчёты, системные напоминания.</p>
+          </div>
+          <SecondaryButton href="/app/notifications" className="px-3 py-1 text-xs">
+            Все уведомления
+          </SecondaryButton>
+        </div>
+        {data?.actionItems?.length ? (
+          <div className="space-y-2">
+            {data.actionItems.map((item) => (
+              <div key={item.id} className="rounded-2xl border border-white/60 bg-white/90 p-3 text-sm text-slate-700">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500">{formatActionType(item.type)}</p>
+                    <p className="font-semibold text-brand-text">{item.title}</p>
+                    <p className="text-xs text-slate-500">{item.body}</p>
+                    <p className="text-[11px] text-slate-400">
+                      {item.createdAt instanceof Date ? item.createdAt.toLocaleString("ru-RU") : new Date(item.createdAt).toLocaleString("ru-RU")}
+                    </p>
+                  </div>
+                  {item.url && (
+                    <PrimaryButton href={item.url} className="px-3 py-1 text-xs">
+                      Перейти
+                    </PrimaryButton>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">На сегодня нет срочных действий.</p>
+        )}
+      </Card>
     </div>
   );
 }
 
-function ListSkeleton({ rows = 4 }: { rows?: number }) {
-  return (
-    <Card className="divide-y divide-brand-border p-0">
-      {Array.from({ length: rows }).map((_, index) => (
-        <div key={index} className="flex items-center justify-between px-6 py-4">
-          <div className="h-4 w-48 animate-pulse rounded bg-slate-200" />
-          <div className="h-4 w-20 animate-pulse rounded bg-slate-200" />
-        </div>
-      ))}
-    </Card>
-  );
-}
-
-function EmptyDashboardNotice() {
-  return (
-    <Card className="mt-4 bg-slate-50 text-sm text-slate-600">
-      Чтобы увидеть аналитику, добавьте в workspace сотрудников, навыки и хотя бы несколько оценок. После
-      этого Quadrant построит агрегированную картину по команде.
-    </Card>
-  );
-}
-
-function renderLimit(max?: number | null) {
-  if (!max || max <= 0) {
-    return " / ∞";
-  }
-  return ` / ${max}`;
-}
-
-function formatLevel(value: number | null | undefined) {
-  if (value === null || value === undefined) {
-    return "—";
-  }
-  return `${formatAverage(value)}/5`;
-}
-
-function formatAverage(value: number) {
-  if (!Number.isFinite(value)) {
-    return "0.0";
-  }
-  return value.toFixed(1);
+function formatActionType(type: DashboardActionItem["type"]) {
+  const map: Record<DashboardActionItem["type"], string> = {
+    pilot_step_due: "Пилот",
+    meeting_upcoming: "Встреча",
+    report_stale: "Отчёт",
+    system: "Система",
+  };
+  return map[type] ?? type;
 }

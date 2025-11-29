@@ -1,37 +1,45 @@
 "use client";
 
-import Link from "next/link";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type {
+  AnchorHTMLAttributes,
+  ButtonHTMLAttributes,
+  ReactNode,
+} from "react";
+import LinkComponent from "@/components/common/LinkComponent";
 
 type BaseProps = {
   children: ReactNode;
-  href?: string;
   className?: string;
 };
 
-type ButtonProps = BaseProps & ButtonHTMLAttributes<HTMLButtonElement>;
+type AnchorProps = {
+  href: string;
+} & Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "children" | "className" | "href">;
 
-export default function SecondaryButton({
-  children,
-  href,
-  className = "",
-  ...props
-}: ButtonProps) {
-  const classes = [
-    "inline-flex h-12 items-center justify-center rounded-full border border-brand-border px-6 text-sm font-semibold text-brand-text transition-all duration-200 hover:border-brand-primary hover:text-brand-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-primary active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60",
-  ];
-  if (className) classes.push(className);
+type ButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children" | "className">;
 
-  if (href) {
+type SecondaryButtonProps = BaseProps & (AnchorProps | ButtonProps);
+
+const SECONDARY_BASE_CLASSES =
+  "inline-flex h-11 items-center justify-center rounded-full border border-brand-border/70 bg-white/80 px-6 text-sm font-semibold shadow-sm transition-all duration-200 hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-primary disabled:cursor-not-allowed disabled:opacity-50";
+
+export default function SecondaryButton({ children, className = "", ...rest }: SecondaryButtonProps) {
+  const classes = [SECONDARY_BASE_CLASSES, className, "text-brand-primary"]
+    .filter(Boolean)
+    .join(" ");
+
+  if ("href" in rest) {
+    const { href, ...anchorProps } = rest as AnchorProps;
     return (
-      <Link href={href} className={classes.join(" ")}>
+      <LinkComponent href={href} className={classes} {...anchorProps}>
         {children}
-      </Link>
+      </LinkComponent>
     );
   }
 
+  const { type, ...buttonProps } = rest as ButtonProps & { type?: ButtonHTMLAttributes<HTMLButtonElement>["type"] };
   return (
-    <button type="button" className={classes.join(" ")} {...props}>
+    <button type={type ?? "button"} className={classes} {...buttonProps}>
       {children}
     </button>
   );

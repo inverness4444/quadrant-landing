@@ -1,4 +1,4 @@
-export type IntegrationType = "github" | "jira" | "notion";
+export type IntegrationType = "github" | "jira" | "notion" | "linear" | "custom";
 export type IntegrationStatus = "connected" | "disconnected" | "error";
 export type IntegrationConfig = Record<string, unknown>;
 
@@ -23,5 +23,15 @@ export const AVAILABLE_INTEGRATIONS: IntegrationDescriptor[] = [
     type: "notion",
     displayName: "Notion",
     description: "Документация, спецификации и продуктовые заметки",
+  },
+  {
+    type: "linear",
+    displayName: "Linear",
+    description: "Быстрый трекинг задач и инициатив",
+  },
+  {
+    type: "custom",
+    displayName: "Custom / ручной импорт",
+    description: "Любая внутренняя система, куда можно выгрузить JSON/CSV",
   },
 ];

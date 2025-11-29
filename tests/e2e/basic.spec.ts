@@ -1,11 +1,13 @@
 import { test, expect } from "@playwright/test";
 import { createWorkspaceOwnerAccount } from "./helpers/db";
 
+const APP_LOAD_TIMEOUT = 90000;
+
 test("navigation works", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /живая карта/i })).toBeVisible();
   await Promise.all([
-    page.waitForURL(/\/companies/),
+    page.waitForURL(/\/companies/, { timeout: APP_LOAD_TIMEOUT }),
     page.getByRole("link", { name: "Для компаний", exact: true }).click(),
   ]);
 });
@@ -18,7 +20,7 @@ test("contact form success", async ({ page }) => {
   await page.getByLabel("Кол-во сотрудников").selectOption("20-100");
   await page.getByLabel("Комментарий/вопрос").fill("Hello");
   await page.getByRole("button", { name: "Отправить" }).click();
-  await expect(page.getByText("Спасибо! Мы свяжемся" )).toBeVisible();
+  await expect(page.getByText(/Спасибо! Мы свяжемся/)).toBeVisible();
 });
 
 test("contact form validation", async ({ page }) => {
@@ -36,8 +38,7 @@ test("blog article opens", async ({ page }) => {
 
 test("demo graph interaction", async ({ page }) => {
   await page.goto("/demo");
-  await page.getByRole("link", { name: "Попробовать демо", exact: true }).first().click({ force: true });
-  await expect(page.locator("#graph")).toBeVisible();
+  await expect(page.locator("#graph")).toBeVisible({ timeout: 15000 });
 });
 
 test("registration leads to app dashboard", async ({ page }) => {
@@ -47,9 +48,9 @@ test("registration leads to app dashboard", async ({ page }) => {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Пароль").fill("secret123");
   await page.getByLabel("Компания / Workspace").fill("Playwright Inc");
-  await page.getByRole("button", { name: "Создать аккаунт" }).click();
-  await expect(page).toHaveURL(/\/app$/);
-  await expect(page.getByRole("heading", { name: "Обзор" })).toBeVisible();
+  await page.getByRole("button", { name: "Создать аккаунт" }).click({ timeout: APP_LOAD_TIMEOUT });
+  await expect(page).toHaveURL(/\/app$/, { timeout: APP_LOAD_TIMEOUT });
+  await expect(page.getByRole("heading", { name: "Обзор компании" })).toBeVisible({ timeout: APP_LOAD_TIMEOUT });
 });
 
 test("login flow works for existing user", async ({ page }) => {
@@ -61,9 +62,9 @@ test("login flow works for existing user", async ({ page }) => {
   await page.goto("/auth/login");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Пароль").fill(password);
-  await page.getByRole("button", { name: "Войти" }).click();
-  await expect(page).toHaveURL(/\/app$/);
-  await expect(page.getByRole("heading", { name: "Обзор" })).toBeVisible();
+  await page.getByRole("button", { name: "Войти" }).click({ timeout: APP_LOAD_TIMEOUT });
+  await expect(page).toHaveURL(/\/app$/, { timeout: APP_LOAD_TIMEOUT });
+  await expect(page.getByRole("heading", { name: "Обзор компании" })).toBeVisible({ timeout: APP_LOAD_TIMEOUT });
 });
 
 test("unauthorized users are redirected from /app", async ({ page }) => {

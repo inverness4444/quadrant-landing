@@ -2,9 +2,9 @@ import type { FooterLinkGroup, NavLink } from "@/types/content";
 
 export const mainNavigation: NavLink[] = [
   { key: "home", href: "/", defaultLabel: "Главная" },
-  { key: "demo", href: "/demo", defaultLabel: "Демо" },
   { key: "companies", href: "/companies", defaultLabel: "Для компаний" },
   { key: "talents", href: "/talents", defaultLabel: "Для специалистов" },
+  { key: "demo", href: "/demo", defaultLabel: "Демо" },
   { key: "platform", href: "/platform", defaultLabel: "О платформе" },
   { key: "pricing", href: "/pricing", defaultLabel: "Цены" },
   { key: "contact", href: "/contact", defaultLabel: "Контакты" },

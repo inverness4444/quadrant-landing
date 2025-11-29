@@ -1,9 +1,10 @@
-import Card from "@/components/common/Card";
-import PrimaryButton from "@/components/common/PrimaryButton";
-import SectionTitle from "@/components/common/SectionTitle";
-import DemoLoginBanner from "@/components/marketing/DemoLoginBanner";
-import { listAllPlans } from "@/repositories/planRepository";
 import type { Metadata } from "next";
+import PricingHeroSection from "@/components/sections/pricing/HeroSection";
+import PlansSection, { type PricingPlan } from "@/components/sections/pricing/PlansSection";
+import PilotSection from "@/components/sections/pricing/PilotSection";
+import ForTalentsNoteSection from "@/components/sections/pricing/ForTalentsNoteSection";
+import PricingFAQSection from "@/components/sections/pricing/FAQSection";
+import PricingCTASection from "@/components/sections/pricing/CTASection";
 
 export const metadata: Metadata = {
   title: "Quadrant — тарифы и предложения",
@@ -11,74 +12,108 @@ export const metadata: Metadata = {
     "Тарифы Quadrant для старта, роста и enterprise-команд. Уточните цену под ваши процессы и интеграции.",
 };
 
-const formatPlanFeatures = (plan: Awaited<ReturnType<typeof listAllPlans>>[number]) => {
-  const features: string[] = [];
-  features.push(
-    plan.maxMembers && plan.maxMembers > 0
-      ? `До ${plan.maxMembers} участников`
-      : "Неограниченное число участников",
-  );
-  features.push(
-    plan.maxEmployees && plan.maxEmployees > 0
-      ? `До ${plan.maxEmployees} сотрудников`
-      : "Все сотрудники без ограничений",
-  );
-  features.push(
-    plan.maxIntegrations && plan.maxIntegrations > 0
-      ? `${plan.maxIntegrations} интеграции`
-      : "Все интеграции включены",
-  );
-  return features;
-};
+const primaryCtaHref = "/contact";
+const pilotAnchorId = "pilot";
 
-const formatPrice = (value: number) => {
-  if (!value) return "Бесплатно";
-  return `от ${value} $/мес`;
-};
+const pricingPlans: PricingPlan[] = [
+  {
+    title: "Pilot",
+    audience: "Для 1–3 команд",
+    description: "Проверить гипотезу за 30–90 дней и показать ценность Quadrant на реальных данных.",
+    limit: "До 50 специалистов",
+    features: [
+      "2–3 интеграции: Git + таск-трекер + знания",
+      "Базовый дашборд по людям и навыкам",
+      "Поддержка через чат",
+    ],
+    badge: "Старт",
+    cta: { label: "Запросить пилот", href: primaryCtaHref },
+  },
+  {
+    title: "Growth",
+    audience: "Для нескольких департаментов",
+    description: "Раскатываем Quadrant на масштаб компании с HR, HRBP и тимлидами.",
+    limit: "До 20 команд",
+    features: [
+      "Расширенные отчёты для HR и HRBP",
+      "Роли и права доступа",
+      "Совместная настройка грейдов и матриц навыков",
+      "Приоритизированная поддержка",
+    ],
+    badge: "Популярный выбор",
+    highlight: true,
+    cta: { label: "Запросить расчёт", href: primaryCtaHref },
+  },
+  {
+    title: "Enterprise",
+    audience: "Для крупных продуктовых компаний и холдингов",
+    description: "Гибкость, безопасность и выделенная команда Quadrant.",
+    limit: "Неограниченно команд",
+    features: [
+      "Он-прем или dedicated-облако",
+      "SSO, аудит, расширенные политики доступа",
+      "Совместный дизайн отчётов под C-level",
+      "Выделенный аккаунт-менеджер",
+    ],
+    cta: { label: "Обсудить Enterprise", href: primaryCtaHref },
+  },
+];
 
-function planCta(planCode: string, isFree: boolean) {
-  if (isFree) {
-    return { label: "Начать бесплатно", href: "/auth/register" };
-  }
-  return { label: "Связаться с нами", href: `/contact?plan=${planCode}` };
-}
+const pilotSteps = [
+  {
+    title: "Диагностика",
+    description: "Выбираем команды, источники данных и цели пилота.",
+  },
+  {
+    title: "Интеграции",
+    description: "Подключаем Git, таск-трекер и Wiki/Notion по согласованию.",
+  },
+  {
+    title: "Граф навыков",
+    description: "Считаем артефакты, строим дашборды по людям и ролям.",
+  },
+  {
+    title: "Обсуждение результатов",
+    description: "Решаем, как масштабировать Quadrant и куда инвестировать развитие.",
+  },
+];
 
-export default async function PricingPage() {
-  const plans = await listAllPlans();
+const faqItems = [
+  {
+    question: "Можно ли начать с одной команды?",
+    answer: "Да. Пилот рассчитан на 1–3 команды и длится 30–90 дней, чтобы показать ценность быстро.",
+  },
+  {
+    question: "Какие интеграции входят в базовую стоимость?",
+    answer: "Git, таск-трекер и один источник знаний. Дополнительные интеграции обсуждаем отдельно.",
+  },
+  {
+    question: "Стоимость считается по сотрудникам или активным пользователям?",
+    answer: "Есть модели по количеству активных специалистов и по числу команд — подберём вариант под ваши процессы.",
+  },
+  {
+    question: "Что с безопасностью и он-прем?",
+    answer: "Quadrant может работать он-прем или в dedicated-облаке, есть SSO, аудит и гибкие роли.",
+  },
+  {
+    question: "Можно ли получить фиксированное коммерческое предложение?",
+    answer: "Да. После короткого созвона предложим 2–3 конфигурации с фиксированными параметрами.",
+  },
+];
+
+export default function PricingPage() {
   return (
-    <div className="space-y-10">
-      <SectionTitle
-        eyebrow="Тарифы"
-        title="Выберите подходящий план"
-        subtitle="Цену уточните у нас — подберём конфигурацию под ваши процессы."
-        align="center"
+    <div className="space-y-16 pb-20">
+      <PricingHeroSection primaryHref={primaryCtaHref} secondaryHref={`#${pilotAnchorId}`} />
+      <PlansSection plans={pricingPlans} />
+      <PilotSection
+        steps={pilotSteps}
+        note="Стоимость пилота зависит от количества команд и интеграций. Обычно предлагаем 2–3 конфигурации на выбор."
+        anchorId={pilotAnchorId}
       />
-      <DemoLoginBanner className="border-dashed" />
-      <div className="grid gap-4 md:grid-cols-3">
-        {plans.map((plan) => {
-          const cta = planCta(plan.code, plan.pricePerMonth === 0);
-          return (
-            <Card key={plan.id} className="flex flex-col border border-brand-border/70">
-              <p className="text-sm font-semibold uppercase text-brand-primary">{plan.name}</p>
-              <p className="mt-2 text-lg font-semibold text-brand-text">{plan.description}</p>
-              <p className="mt-2 text-sm font-semibold text-slate-600">{formatPrice(plan.pricePerMonth)}</p>
-              <ul className="mt-4 flex-1 space-y-2 text-sm text-slate-600">
-                {formatPlanFeatures(plan).map((feature) => (
-                  <li key={feature}>• {feature}</li>
-                ))}
-              </ul>
-              <div className="mt-4">
-                <PrimaryButton href={cta.href} className="w-full justify-center">
-                  {cta.label}
-                </PrimaryButton>
-              </div>
-              <p className="mt-2 text-xs text-slate-500">
-                {plan.pricePerMonth === 0 ? "Всегда бесплатно" : "Персональная цена по запросу"}
-              </p>
-            </Card>
-          );
-        })}
-      </div>
+      <ForTalentsNoteSection ctaHref="/talents" />
+      <PricingFAQSection items={faqItems} />
+      <PricingCTASection />
     </div>
   );
 }

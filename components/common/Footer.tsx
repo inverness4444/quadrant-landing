@@ -3,41 +3,50 @@ import { contentService } from "@/services/contentService";
 
 export default function Footer() {
   const { footer } = contentService.getNavigation();
+  const seenCombos = new Set<string>();
+  const hrefCounters = new Map<string, number>();
+  const quickLinks = footer
+    .flatMap((group) => group.links)
+    .filter((link) => {
+      const comboKey = `${link.href}-${link.label}`;
+      if (seenCombos.has(comboKey)) return false;
+      seenCombos.add(comboKey);
+      return true;
+    })
+    .slice(0, 6)
+    .map((link) => {
+      const counter = hrefCounters.get(link.href) ?? 0;
+      hrefCounters.set(link.href, counter + 1);
+      return {
+        ...link,
+        id: `${link.href}-${counter}`,
+      };
+    }); // уникальные id нужны для стабильных React key даже при повторе href
   return (
-    <footer className="border-t border-brand-border bg-white">
-      <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10 sm:px-6 lg:flex-row lg:justify-between lg:px-8">
-        <div className="max-w-md">
-          <p className="text-2xl font-semibold text-brand-text">Quadrant</p>
-          <p className="mt-3 text-sm text-slate-600">
-            Живая карта навыков и карьерных треков. Quadrant анализирует настоящие
-            артефакты работы и помогает компаниям развивать внутренние таланты.
+    <footer className="mt-16 border-t border-white/40 bg-white/50 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-12 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+        <div className="space-y-3">
+          <Link href="/" className="text-2xl font-semibold text-brand-text">
+            Quadrant
+          </Link>
+          <p className="text-sm text-slate-500">
+            Живой SaaS для картирования навыков, артефактов и карьерных треков. Quadrant помогает командам и специалистам принимать решения о росте.
           </p>
-          <p className="mt-4 text-sm text-slate-500">
-            hello@quadrant.app • +7 (999) 000-00-00
-          </p>
+          <p className="text-sm text-slate-400">hello@quadrant.app</p>
         </div>
-        <div className="grid flex-1 gap-6 text-sm text-slate-600 md:grid-cols-2 lg:grid-cols-4">
-          {footer.map((group) => (
-            <div key={group.title}>
-              <p className="text-xs font-semibold uppercase text-slate-500">
-                {group.title}
-              </p>
-              <div className="mt-2 space-y-2">
-                {group.links.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className="block transition hover:text-brand-text"
-                  >
-                    {link.label}
-                  </Link>
-                ))}
-              </div>
-            </div>
+        <nav className="flex flex-wrap gap-4 text-sm text-slate-500">
+          {quickLinks.map((link) => (
+            <Link
+              key={link.id}
+              href={link.href}
+              className="transition hover:text-brand-text"
+            >
+              {link.label}
+            </Link>
           ))}
-        </div>
+        </nav>
       </div>
-      <div className="border-t border-brand-border py-4 text-center text-xs text-slate-500">
+      <div className="border-t border-white/50 py-4 text-center text-xs text-slate-500">
         © {new Date().getFullYear()} Quadrant. Все права защищены.
       </div>
     </footer>

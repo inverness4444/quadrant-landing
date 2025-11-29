@@ -1,35 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { registerUser, validateUser } from "@/services/auth/authService";
-import { db } from "@/lib/db";
 import { ensureDefaultTestPlan } from "@/tests/utils/planTestHelper";
-import {
-  employeeSkills,
-  employees,
-  artifacts,
-  artifactSkills,
-  integrations,
-  invites,
-  members,
-  skills,
-  tracks,
-  trackLevels,
-  workspaces,
-  users,
-} from "@/drizzle/schema";
+import { resetWorkspaceData } from "@/tests/utils/dbCleaner";
 
 beforeEach(async () => {
-  await db.delete(artifactSkills).run();
-  await db.delete(artifacts).run();
-  await db.delete(integrations).run();
-  await db.delete(employeeSkills).run();
-  await db.delete(employees).run();
-  await db.delete(invites).run();
-  await db.delete(members).run();
-  await db.delete(trackLevels).run();
-  await db.delete(tracks).run();
-  await db.delete(skills).run();
-  await db.delete(workspaces).run();
-  await db.delete(users).run();
+  await resetWorkspaceData({ includePlans: true });
   await ensureDefaultTestPlan();
 });
 

@@ -25,12 +25,14 @@ export async function findIntegrationById(id: string) {
 export async function createIntegration({
   workspaceId,
   type,
+  name,
   config = {},
   status = "connected",
 }: {
   workspaceId: string;
   type: string;
-  config?: Record<string, unknown>;
+  name: string;
+  config?: Record<string, unknown> | string;
   status?: IntegrationStatus;
 }) {
   const id = randomUUID();
@@ -40,8 +42,9 @@ export async function createIntegration({
       id,
       workspaceId,
       type,
+      name,
       status,
-      config: JSON.stringify(config),
+      config: typeof config === "string" ? config : JSON.stringify(config),
       createdAt: timestamp,
       updatedAt: timestamp,
     })
@@ -51,11 +54,14 @@ export async function createIntegration({
 
 export async function updateIntegration(
   id: string,
-  data: Partial<Pick<Integration, "status" | "config" | "lastSyncedAt">>,
+  data: Partial<Pick<Integration, "name" | "status" | "config" | "lastSyncedAt">>,
 ) {
   const updates: Partial<Integration> = {
     updatedAt: now(),
   };
+  if (typeof data.name !== "undefined") {
+    updates.name = data.name;
+  }
   if (typeof data.status !== "undefined") {
     updates.status = data.status;
   }

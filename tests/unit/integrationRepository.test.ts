@@ -68,6 +68,7 @@ describe("integrationRepository", () => {
     const integration = await createIntegration({
       workspaceId,
       type: "github",
+      name: "GitHub Repo",
       status: "connected",
     });
     expect(integration?.type).toBe("github");
@@ -82,6 +83,7 @@ describe("integrationRepository", () => {
     const integration = await createIntegration({
       workspaceId,
       type: "jira",
+      name: "Jira Project",
       status: "connected",
     });
     expect(integration).toBeTruthy();

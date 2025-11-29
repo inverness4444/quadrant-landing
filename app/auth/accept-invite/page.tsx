@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Card from "@/components/common/Card";
 import PrimaryButton from "@/components/common/PrimaryButton";
+import SecondaryButton from "@/components/common/SecondaryButton";
 import { getUserIdFromCookies } from "@/lib/session";
 import { getInviteDetails, acceptInviteForUser } from "@/services/inviteService";
 import { findUserById } from "@/repositories/userRepository";
@@ -103,12 +104,12 @@ function LoginOrRegister({ token, email, workspaceName }: { token: string; email
           Чтобы присоединиться, войдите под почтой <strong>{email}</strong> или зарегистрируйтесь.
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
-          <PrimaryButton href={loginHref} className="flex-1 text-center">
+          <PrimaryButton href={loginHref} className="flex-1">
             Войти
           </PrimaryButton>
-          <PrimaryButton href={registerHref} variant="secondary" className="flex-1 text-center">
+          <SecondaryButton href={registerHref} className="flex-1 text-center">
             Зарегистрироваться
-          </PrimaryButton>
+          </SecondaryButton>
         </div>
       </Card>
     </div>
@@ -135,9 +136,9 @@ function InviteMismatch({ inviteEmail, currentEmail, token }: { inviteEmail: str
             </PrimaryButton>
             <input type="hidden" name="next" value={returnHref} />
           </form>
-          <PrimaryButton href={returnHref} variant="secondary" className="flex-1 text-center">
+          <SecondaryButton href={returnHref} className="flex-1 text-center">
             Обновить страницу
-          </PrimaryButton>
+          </SecondaryButton>
         </div>
       </Card>
     </div>

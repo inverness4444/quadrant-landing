@@ -18,14 +18,14 @@ export default function SectionTitle({
   return (
     <div className={classes.join(" ")}>
       {eyebrow && (
-        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-brand-primary">
+        <p className="text-xs font-semibold uppercase tracking-[0.4em] text-brand-primary/80">
           {eyebrow}
         </p>
       )}
-      <h2 className="text-3xl font-semibold leading-tight text-brand-text sm:text-4xl">
+      <h2 className="text-3xl font-semibold leading-tight text-brand-text sm:text-[2.75rem] sm:leading-tight">
         {title}
       </h2>
-      {subtitle && <p className="text-lg text-slate-600">{subtitle}</p>}
+      {subtitle && <p className="text-lg text-slate-600/90">{subtitle}</p>}
     </div>
   );
 }

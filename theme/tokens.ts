@@ -1,13 +1,13 @@
 export const themeTokens = {
   colors: {
-    primary: "#f44336",
-    primaryAccent: "#ff7043",
-    background: "#f5f6fb",
+    primary: "#5d5fef",
+    primaryAccent: "#8b5cf6",
+    background: "#f3f4f8",
     surface: "#ffffff",
-    text: "#1f1f29",
-    muted: "#667085",
-    border: "#e3e6ef",
-    link: "#1f55b5",
+    text: "#0b1220",
+    muted: "#6b7280",
+    border: "#e2e6f2",
+    link: "#4c6ef5",
   },
   typography: {
     h1: { size: "2.75rem", lineHeight: "1.2", weight: 600 },

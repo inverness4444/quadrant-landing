@@ -1,12 +1,16 @@
+import type { ArtifactAssigneeRole, ArtifactType } from "@/drizzle/schema";
 import type { IntegrationType } from "@/integrations/types";
 
 export type DemoArtifactPayload = {
-  employeeId: string;
-  type: "code" | "task" | "doc" | "review";
+  externalId: string;
+  type: ArtifactType;
   title: string;
-  description: string;
-  link?: string;
-  skills: Array<{ skillId: string; weight: number }>;
+  summary: string;
+  url?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  assignees: Array<{ employeeId: string; role?: ArtifactAssigneeRole }>;
+  skills?: Array<{ skillId: string; confidence?: number }>;
 };
 
 export type IntegrationClient = {

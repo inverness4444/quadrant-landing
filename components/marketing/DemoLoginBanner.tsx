@@ -2,35 +2,48 @@ import PrimaryButton from "@/components/common/PrimaryButton";
 import Card from "@/components/common/Card";
 import { env } from "@/config/env";
 
-export default function DemoLoginBanner({ className }: { className?: string }) {
-  if (!env.demo.enabled) {
-    return null;
-  }
+type DemoLoginBannerProps = {
+  className?: string;
+};
+
+export default function DemoLoginBanner({ className }: DemoLoginBannerProps) {
+  const enabled = Boolean(env.demo.enabled);
   const email = env.demo.email ?? "demo@quadrant.app";
   const highlights = [
-    "Живой граф навыков и сотрудников",
+    "Живой граф сотрудников и навыков",
     "Карьерные треки и уровни",
     "Артефакты из GitHub/Jira/Notion",
-    "Лимиты планов и биллинг",
+    "Подключённые интеграции и тариф Growth",
   ];
+  const description = enabled
+    ? "Демо-аккаунт уже наполнен данными: сотрудники, навыки, треки, артефакты и интеграции."
+    : "Запросите пилот, и мы соберём демо на ваших артефактах и планах роста.";
+
   return (
     <Card className={className ?? ""}>
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase text-brand-primary">Демо-режим</p>
-          <p className="mt-1 text-base font-semibold text-brand-text">Зайдите в Quadrant без регистрации</p>
-          <p className="text-sm text-slate-500">
-            Мы подготовили аккаунт с сотрудниками, навыками, артефактами и подключенными интеграциями.
+      <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-3">
+          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-brand-primary/80">
+            {enabled ? "Демо-режим" : "Пилот"}
           </p>
-          <ul className="mt-2 list-disc pl-5 text-xs text-slate-500">
+          <h3 className="text-2xl font-semibold text-brand-text">
+            {enabled ? "Войдите в Quadrant без регистрации" : "Хотите увидеть Quadrant на своих данных?"}
+          </h3>
+          <p className="text-sm text-slate-500">{description}</p>
+          <div className="grid gap-3 text-xs text-slate-500 sm:grid-cols-2">
             {highlights.map((item) => (
-              <li key={item}>{item}</li>
+              <div key={item} className="rounded-2xl border border-white/60 bg-brand-muted/60 px-3 py-2">
+                {item}
+              </div>
             ))}
-          </ul>
-          <p className="mt-1 text-xs text-slate-400">Логин: {email}</p>
+          </div>
+          {enabled && <p className="text-xs text-slate-400">Логин демо: {email}</p>}
         </div>
-        <PrimaryButton href="/auth/demo-login" className="w-full justify-center md:w-auto">
-          Войти как демо-компания
+        <PrimaryButton
+          href={enabled ? "/auth/demo-login" : "/contact"}
+          className="w-full justify-center md:w-auto"
+        >
+          {enabled ? "Войти как демо-компания" : "Запросить пилот"}
         </PrimaryButton>
       </div>
     </Card>

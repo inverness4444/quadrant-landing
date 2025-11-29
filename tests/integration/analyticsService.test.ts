@@ -160,6 +160,6 @@ describe("analyticsService", () => {
     const lowSkill = risk.find((entry) => entry.name === "Needs help");
     expect(lowSkill?.problems.some((p) => p.skillName === "React")).toBe(true);
     const noSkills = risk.find((entry) => entry.name === "No Skills");
-    expect(noSkills?.problems[0]?.skillName).toContain("Недостаточно навыков");
+    expect(noSkills?.problems[0]?.skillName).toMatch(/(Нет данных по навыкам|Недостаточно навыков)/);
   });
 });

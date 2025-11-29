@@ -2,8 +2,25 @@ import { z } from "zod";
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-  DATABASE_URL: z.string().optional(),
-  BASE_URL: z.string().optional(),
+  ENVIRONMENT: z.enum(["local", "staging", "production"]).default("local"),
+  DATABASE_URL: z.string().url().or(z.string()).default("file:./data/quadrant.db"),
+  BASE_URL: z
+    .string()
+    .optional()
+    .transform((value) => {
+      if (!value || value.trim() === "" || value.trim() === "/") return "http://localhost:3000";
+      return value;
+    })
+    .pipe(z.string().url()),
+  SESSION_SECRET: z.string().min(8, "SESSION_SECRET is required").default("dev-secret"),
+  TELEMETRY_DISABLED: z
+    .union([z.boolean(), z.string()])
+    .optional()
+    .transform((value) => {
+      if (typeof value === "boolean") return value;
+      if (typeof value === "string") return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+      return undefined;
+    }),
   DEMO_ENABLED: z
     .union([z.boolean(), z.string()])
     .optional()
@@ -71,15 +88,21 @@ const cached = (() => {
   const featureFlags = parseFeatureFlags(parsed.FEATURE_FLAGS);
   const databaseUrl = ensure(parsed, "DATABASE_URL", "file:./data/quadrant.db");
   const baseUrl = ensure(parsed, "BASE_URL", "http://localhost:3000");
+  const sessionSecret = ensure(parsed, "SESSION_SECRET", "dev-secret");
   const demoEnabled =
     typeof parsed.DEMO_ENABLED === "boolean" ? parsed.DEMO_ENABLED : parsed.NODE_ENV !== "production";
+  const telemetryDisabled =
+    typeof parsed.TELEMETRY_DISABLED === "boolean" ? parsed.TELEMETRY_DISABLED : parsed.NODE_ENV !== "production";
 
   return {
     nodeEnv: parsed.NODE_ENV,
+    environment: parsed.ENVIRONMENT,
     isProduction: parsed.NODE_ENV === "production",
     isTest: parsed.NODE_ENV === "test",
+    telemetryDisabled,
     databaseUrl,
     baseUrl,
+    sessionSecret,
     smtp: {
       host: parsed.CONTACT_SMTP_HOST ?? null,
       port: parsed.CONTACT_SMTP_PORT ?? null,
